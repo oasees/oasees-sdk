@@ -21,20 +21,20 @@ As soon as the SDK gets successfully imported into the chosen python environment
 
 ```
 ╔═════════════════════════════════════════════════════════════════════════════════════╗
-║ OASEES SDK methods 	 	                                                          ║
+║ OASEES SDK methods 	 	                                                      ║
 ║ ------------------------------                                                      ║
 ║                                                                                     ║
-║     my_algorithms() 		                                                          ║
+║     my_algorithms() 		                                                      ║
 ║         Returns a list with all the algorithms purchased from your account          ║
 ║         on the OASEES Marketplace.                                                  ║
 ║                                                                                     ║
 ║                                                                                     ║
-║     my_devices() 	   	                                                              ║
+║     my_devices() 	   	                                                      ║
 ║         Returns a list with all the devices purchased / uploaded from your account  ║
 ║         on the OASEES Marketplace.                                                  ║
 ║                                                                                     ║
 ║                                                                                     ║
-║     deploy_algorithm(algorithm_title: str) 	 	                                  ║
+║     deploy_algorithm(algorithm_title: str) 	 	                              ║
 ║         Deploys a purchased algorithm on all your connected devices.                ║
 ║                                                                                     ║
 ║         - algorithm_title: Needs to be provided in "string" form.                   ║
@@ -43,7 +43,7 @@ As soon as the SDK gets successfully imported into the chosen python environment
 ║                                                                                     ║
 ║                                                                                     ║
 ║                                                                                     ║
-║     deploy_local_file(path: str) 	   	                                              ║
+║     deploy_local_file(path: str) 	   	                                      ║
 ║         Deploys the file found in the specified path on all your connected devices. ║
 ║                                                                                     ║
 ║         - path: -> Needs to be provided in "string" form.                           ║
@@ -54,7 +54,7 @@ As soon as the SDK gets successfully imported into the chosen python environment
 ║                                                                                     ║
 ║                                                                                     ║
 ║                                                                                     ║
-║     instructions() 	 	                                                          ║
+║     instructions() 	 	                                                      ║
 ║         Reprints the above documentation.                                           ║
 ║                                                                                     ║
 ╚═════════════════════════════════════════════════════════════════════════════════════╝
