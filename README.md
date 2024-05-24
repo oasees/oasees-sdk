@@ -16,7 +16,7 @@ And then import the oasees_sdk.
 <br/>
 
 
-## Usage / Instructions
+## Usage / Instructions (outdated)
 As soon as the SDK gets successfully imported into the chosen python environment, the following brief documentation about its functions and their usage is printed:
 
 ```
