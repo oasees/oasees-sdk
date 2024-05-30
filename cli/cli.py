@@ -243,6 +243,7 @@ def init_cluster():
                 update_cluster_id(dao[4])
                 break
 
+
         click.echo("Cluster successfully deployed.")
 
     except FileNotFoundError:
@@ -284,14 +285,19 @@ def uninstall(role):
 @cli.command()
 @click.option('--ip', required=True, help="The cluster's master ip address.")
 @click.option('--token', required=True, help="The cluster's master token.")
-def join_cluster(ip,token):
-    '''Joins the current machine to the specified cluster.'''
+@click.option('--iface', required=False, help="The network interface you want to join with (tun0 if you're using a VPN connection).")
+def join_cluster(ip,token,iface):
+    '''Joins the current machine to the specified cluster, using the specified interface if one is provided.'''
     try:
         mkdir_1 = subprocess.run(['sudo','mkdir','/etc/rancher'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         mkdir_2 = subprocess.run(['sudo','mkdir','/etc/rancher/k3s'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         echo = subprocess.run(['sudo','sh', '-c','echo "mirrors:\n  docker.io:\n  registry.k8s.io:" > /etc/rancher/k3s/registries.yaml'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         curl = subprocess.Popen(['curl','-sfL', 'https://get.k3s.io'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        result = subprocess.check_output(['sh','-'], env={'K3S_URL' : 'https://'+ip+':6443', 'K3S_TOKEN': token}, stdin=curl.stdout)
+
+        if(iface):
+            result = subprocess.check_output(['sh','-s','-','--flannel-iface', iface], env={'K3S_URL' : 'https://'+ip+':6443', 'K3S_TOKEN': token}, stdin=curl.stdout)
+        else:
+            result = subprocess.check_output(['sh','-'], env={'K3S_URL' : 'https://'+ip+':6443', 'K3S_TOKEN': token}, stdin=curl.stdout)
         click.echo(result)
         curl.wait()
     except FileNotFoundError:
