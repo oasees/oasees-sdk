@@ -9,7 +9,7 @@ The OASEES SDK is a Python package that consists of two modules: the **Command L
 The CLI module's purpose is to handle the Kubernetes aspect of the OASEES framework. It provides the user with a few simple commands to quickly provision and configure a Kubernetes cluster, as well as facilitate and automate its nodes' connection to the OASEES blockchain
 <br>
 
-### <u>Installation</u>
+### <ins>Installation</ins>
 Like any other user Python package published on the PyPi repository, the user can install the OASEES SDK using pip.
 
 <ol>
@@ -57,11 +57,11 @@ Which will also provide you with the CLI's available commands and a very short d
 
 <br><br>
 
-### <u>Usage</u>
+### <ins>Usage</ins>
 
-#### <u>Important note:</u> Before using the CLI module, ensure that an instance of the OASEES stack is up and running.
+#### <ins>Important note:</ins> Before using the CLI module, ensure that an instance of the OASEES stack is up and running.
 
-The SDK is designed to work in parallel with the rest of the stack. Before provisioning a cluster, <u>the user will be prompted to enter the stack's IP address and their blockchain account information</u> (if you're using a test account, make sure it's the same one that you've imported on MetaMask).
+The SDK is designed to work in parallel with the rest of the stack. Before provisioning a cluster, <ins>the user will be prompted to enter the stack's IP address and their blockchain account information</ins> (if you're using a test account, make sure it's the same one that you've imported on MetaMask).
 
 Should any typing mistake happen during the input prompts, you can edit the configuration file located in `/home/{username}/.oasees_sdk/config.json`, or use `oasees-sdk config-full-reset` to completely reset the configuration and force the prompts to reappear.
 
@@ -71,7 +71,7 @@ Should any typing mistake happen during the input prompts, you can edit the conf
 
 <br>
 
-#### <u>Available commands</u>
+#### <ins>Available commands</ins>
 
 As mentioned above, executing `oasees-sdk` in your terminal will give you a list of the available commands. To get the full description of one of these commands, simply execute:
 
@@ -83,7 +83,7 @@ As mentioned above, executing `oasees-sdk` in your terminal will give you a list
 
 <br>
 
-#### <u>The CLI's typical usage flow:</u>
+#### <ins>The CLI's typical usage flow:</ins>
 
 <ol>
 
@@ -157,13 +157,13 @@ After the DAO logic is applied, devices that are already registered on the block
 
 <br>
 
-#### <u>Uninstalling</u>
+#### <ins>Uninstalling</ins>
 
 If you want to uninstall your cluster (e.g. you've restarted your OASEES stack) run the following **on the master node**:
 
     oasees-sdk uninstall master # UNINSTALLS K3S SERVER ON MASTER NODE
 
-and **on <u>each</u> of your worker nodes**:
+and **on <ins>each</ins> of your worker nodes**:
 
     oasees-sdk uninstall agent #UNINSTALLS K3S AGENT ON WORKER NODE
 
