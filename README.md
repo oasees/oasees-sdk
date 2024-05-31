@@ -122,6 +122,10 @@ Execute the join-cluster command **on each of your worker devices** to join them
 
     oasees-sdk join-cluster --ip {K3S_MASTER_IP_ADDRESS} --token {K3S_MASTER_TOKEN}
 
+**NOTE: If you're using a VPN connection, make sure to specify that connection's network interface by setting an extra flag:**
+
+    oasees-sdk join-cluster --ip {K3S_MASTER_IP_ADDRESS} --token {K3S_MASTER_TOKEN} --iface {VPN_INTERFACE}
+
 
 </li>
 
@@ -150,6 +154,11 @@ After the DAO logic is applied, devices that are already registered on the block
 </li>
 
 </ol>
+
+<br>
+
+### [Click here for a video demo of the above steps.](https://nocncsrd.sharepoint.com/:v:/r/sites/OASEES2/Shared%20Documents/WP4/Meetings/OASEES%20stack%20%26%20sdk%20new%20installation%20guide/cli_demo_2.mp4?csf=1&web=1&e=gkYTbE)
+
 
 <br>
 
