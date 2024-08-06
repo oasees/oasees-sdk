@@ -67,6 +67,120 @@ spec:
       nodePort: 31005
 """
 
+svc_account_str="""
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: loader
+  namespace: default
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: loader
+rules:
+- apiGroups:
+  - '*'
+  resources:
+  - '*'
+  verbs:
+  - '*'
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: loader
+subjects:
+- kind: ServiceAccount
+  name: loader
+roleRef:
+  kind: Role
+  name: loader
+  apiGroup: rbac.authorization.k8s.io
+"""
+
+app_manifest_template = """
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: ${IMAGE_NAME}
+  name: ${IMAGE_NAME}
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ${IMAGE_NAME}
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: ${IMAGE_NAME}
+    spec:
+      nodeName: ${NODE_NAME}
+      containers:
+      - image: ${IMAGE_NAME}:oasees
+        imagePullPolicy: IfNotPresent
+        name: ${IMAGE_NAME}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  creationTimestamp: null
+  labels:
+    app: ${IMAGE_NAME}
+  name: ${IMAGE_NAME}
+  namespace: default
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: ${IMAGE_NAME}
+  type: ClusterIP
+status:
+  loadBalancer: {}
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-${IMAGE_NAME}
+  namespace: default
+spec:
+  stripPrefix:
+    prefixes:
+      - /${IMAGE_NAME}
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web, websecure
+    traefik.ingress.kubernetes.io/router.middlewares: default-redirecttohttps@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: default-strip-${IMAGE_NAME}@kubernetescrd
+  name: ${IMAGE_NAME}-ingress1
+  namespace: default
+spec:
+  ingressClassName: traefik
+  rules:
+  - http:
+      paths:
+      - path: /${IMAGE_NAME}
+        pathType: Prefix
+        backend:
+          service:
+            name: ${IMAGE_NAME}
+            port:
+              number: 80
+"""
 SDK_PATH = "/home/" + getpass.getuser() + "/.oasees_sdk"
 
 @click.group(invoke_without_command=True)
@@ -121,9 +235,12 @@ def cli(ctx):
         cli(['--help'])
 
 @cli.command()
-def init_cluster():
+@click.option('--price', required=False, type=float, default=0, help="")
+def init_cluster(price):
     '''Creates a new kubernetes cluster with the current machine as its master, and registers it to the blockchain.'''
+    click.echo(price)
     config_setup()
+    template_setup()
     try:
         with open('/home/'+getpass.getuser()+'/.oasees_sdk/config.json', 'r') as f:
             config = json.load(f)
@@ -152,23 +269,29 @@ def init_cluster():
         mkdir_2 = subprocess.run(['sudo','mkdir','/etc/rancher/k3s'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         echo = subprocess.run(['sudo','sh', '-c','echo "mirrors:\n  docker.io:\n  registry.k8s.io:" > /etc/rancher/k3s/registries.yaml'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         curl = subprocess.Popen(['curl','-sfL', 'https://get.k3s.io'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        result = subprocess.check_output(['sh','-s','-','--write-kubeconfig-mode','644', '--write-kubeconfig', '/home/'+getpass.getuser()+'/.kube/config','--embedded-registry'], stdin=curl.stdout)
+        result = subprocess.check_output(['sh','-s','-','--write-kubeconfig-mode','644', '--write-kubeconfig', '/home/'+getpass.getuser()+'/.kube/config','--embedded-registry', '--node-label', 'user='+getpass.getuser()], stdin=curl.stdout)
         click.echo(result)
         curl.wait()
 
 
-        time.sleep(3)
+        ip = ""
+        while not ip:
+            time.sleep(3)
+            with open('/home/'+getpass.getuser()+'/.kube/config', 'r') as f:
+                cluster_config = yaml.safe_load(f)
 
-        with open('/home/'+getpass.getuser()+'/.kube/config', 'r') as f:
-            cluster_config = yaml.safe_load(f)
+            result = subprocess.run(['kubectl','get','nodes','-o','custom-columns=IP:.status.addresses[].address','--no-headers'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            ip = result.stdout.strip().split('\n')
 
-        result = subprocess.run(['kubectl','get','nodes','-o','custom-columns=IP:.status.addresses[].address','--no-headers'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        ip = result.stdout.strip().split('\n')
-
-        click.echo(ip[0])
-        cluster_config['clusters'][0]['cluster']['server'] = "https://{}:6443".format(ip[0])
+            click.echo(ip[0])
+            cluster_config['clusters'][0]['cluster']['server'] = "https://{}:6443".format(ip[0])
 
         echo = subprocess.Popen(['echo', ipfs_manifest_str], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        result = subprocess.check_output(['kubectl','apply','-f','-'], stdin=echo.stdout)
+        click.echo(result)
+        echo.wait()
+
+        echo = subprocess.Popen(['echo', svc_account_str], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         result = subprocess.check_output(['kubectl','apply','-f','-'], stdin=echo.stdout)
         click.echo(result)
         echo.wait()
@@ -197,54 +320,84 @@ def init_cluster():
 
 
 
-        dao_args = {
-            "DAO_NAME": socket.gethostname(),
-            "DAO_DESC": "A Cluster created with Oasees SDK.",
-            "MIN_DELAY":0,
-            "VOTING_PERIOD":10,
-	        "VOTING_DELAY":0,
-            "QUORUM_PERCENTAGE":50,
-            "dao_app_name":"flask1"
-        }
+        if(price==0):
+            dao_args = {
+                "DAO_NAME": socket.gethostname(),
+                "DAO_DESC": "A Cluster created with Oasees SDK.",
+                "MIN_DELAY":0,
+                "VOTING_PERIOD":10,
+                "VOTING_DELAY":0,
+                "QUORUM_PERCENTAGE":50,
+                "dao_app_name":"dapp"
+            }
 
 
-        ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' 
+            ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' 
 
-        DAO_NAME = dao_args['DAO_NAME']
-        DAO_DESC = dao_args['DAO_DESC']
+            DAO_NAME = dao_args['DAO_NAME']
+            DAO_DESC = dao_args['DAO_DESC']
 
-        dao_info = {
-            "dao_name": DAO_NAME,
-            "dao_desc": DAO_DESC,
-            "dao_app_name":"flask1"
-        }
-
-
-        dao_info_hash = client.add_json(dao_info)
-        client.close()
-        
-
-        transaction = marketplace_contract.functions.makeDao(nft_address,0,dao_info_hash,token_id,True).build_transaction({
-		'value':0,
-		'chainId': 31337, 
-		'gas': 2000000,  
-		'gasPrice': w3.eth.gas_price,  
-		'nonce': w3.eth.get_transaction_count(deployer_account)
-	    })
+            dao_info = {
+                "dao_name": DAO_NAME,
+                "dao_desc": DAO_DESC,
+                "dao_app_name":"dapp",
+                "cluster_ip": ip[0],
+            }
 
 
-        signed_transaction = w3.eth.account.sign_transaction(transaction, private_key=deployer_key)
-        transaction_hash = w3.eth.send_raw_transaction(signed_transaction.rawTransaction)
-        txn_receipt = w3.eth.wait_for_transaction_receipt(transaction_hash)
+            dao_info_hash = client.add_json(dao_info)
+            client.close()
+            
 
-        results = marketplace_contract.caller({'from': deployer_account}).getJoinedDaos()
-        for dao in results:
-            if (dao[6]):
-                update_cluster_id(dao[4])
-                break
+            transaction = marketplace_contract.functions.makeDao(nft_address,0,dao_info_hash,token_id,True).build_transaction({
+            'value':0,
+            'chainId': 31337, 
+            'gas': 2000000,  
+            'gasPrice': w3.eth.gas_price,  
+            'nonce': w3.eth.get_transaction_count(deployer_account)
+            })
 
 
-        click.echo("Cluster successfully deployed.")
+            signed_transaction = w3.eth.account.sign_transaction(transaction, private_key=deployer_key)
+            transaction_hash = w3.eth.send_raw_transaction(signed_transaction.rawTransaction)
+            txn_receipt = w3.eth.wait_for_transaction_receipt(transaction_hash)
+
+            results = marketplace_contract.caller({'from': deployer_account}).getJoinedDaos()
+            for dao in results:
+                if (dao[6]):
+                    update_cluster_id(dao[4])
+                    break
+
+
+            click.echo("Cluster successfully deployed.")
+
+        else:
+            metadata = {
+                "title": socket.gethostname(),
+                "description": "An all-in-one device cluster made by the OASEES SDK.",
+                "cluster_ip": ip[0],
+            }
+
+            metadata = json.dumps(metadata)
+            meta_hash = client.add_json(metadata)
+            client.close()
+
+            market_fee = marketplace_contract.functions.LISTING_FEE().call()
+
+            transaction = marketplace_contract.functions.makeDevice(nft_address,token_id,w3.to_wei(price,'ether'),meta_hash,True,True).build_transaction({
+            'value':market_fee,
+            'chainId': 31337, 
+            'gas': 2000000,  
+            'gasPrice': w3.eth.gas_price,  
+            'nonce': w3.eth.get_transaction_count(deployer_account)
+            })
+
+
+            signed_transaction = w3.eth.account.sign_transaction(transaction, private_key=deployer_key)
+            transaction_hash = w3.eth.send_raw_transaction(signed_transaction.rawTransaction)
+            txn_receipt = w3.eth.wait_for_transaction_receipt(transaction_hash)
+
+            click.echo("Cluster successfully deployed and published to the Marketplace.")
 
     except FileNotFoundError:
         click.echo("Error: K3s cluster could not be deployed.")
@@ -295,9 +448,9 @@ def join_cluster(ip,token,iface):
         curl = subprocess.Popen(['curl','-sfL', 'https://get.k3s.io'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
         if(iface):
-            result = subprocess.check_output(['sh','-s','-','--flannel-iface', iface], env={'K3S_URL' : 'https://'+ip+':6443', 'K3S_TOKEN': token}, stdin=curl.stdout)
+            result = subprocess.check_output(['sh','-s','-','--flannel-iface', iface, '--node-label', 'user='+getpass.getuser()], env={'K3S_URL' : 'https://'+ip+':6443', 'K3S_TOKEN': token}, stdin=curl.stdout)
         else:
-            result = subprocess.check_output(['sh','-'], env={'K3S_URL' : 'https://'+ip+':6443', 'K3S_TOKEN': token}, stdin=curl.stdout)
+            result = subprocess.check_output(['sh','-s','-' '--node-label', 'user='+getpass.getuser()], env={'K3S_URL' : 'https://'+ip+':6443', 'K3S_TOKEN': token}, stdin=curl.stdout)
         click.echo(result)
         curl.wait()
     except FileNotFoundError:
@@ -412,7 +565,7 @@ def register_new_nodes():
 
             token_id=int(tx_json['logs'][2]['data'],16)
 
-            transaction = marketplace_contract.functions.makeDevice(nft_address,token_id,w3.to_wei(0, 'ether'),meta_hash,False).build_transaction({
+            transaction = marketplace_contract.functions.makeDevice(nft_address,token_id,w3.to_wei(0, 'ether'),meta_hash,False,False).build_transaction({
                 'value':market_fee,
                 'chainId': 31337,
                 'gas': 2000000,
@@ -452,6 +605,7 @@ def register_new_nodes():
                 dao_content = client.cat(dao_content_hash)
                 dao_content = dao_content.decode("UTF-8")
                 dao_content = json.loads(dao_content)
+                client.close()
 
                 token_contract = w3.eth.contract(address=dao_content['token_address'], abi=dao_content['token_abi'])
 
@@ -519,6 +673,7 @@ def apply_dao_logic(dao_content_hash):
     dao_content = client.cat(dao_content_hash)
     dao_content = dao_content.decode("UTF-8")
     dao_content = json.loads(dao_content)
+    client.close()
 
 
     w3 = web3.Web3(web3.HTTPProvider("http://{}:8545".format(config['BLOCKCHAIN_IP'])))
@@ -765,6 +920,14 @@ def config_exists():
             json.dump(config,f)
 
 
+def template_setup():
+
+    manifest_template_path = "/home/" + getpass.getuser()+"/.oasees_sdk/template.yaml"
+
+    with open(manifest_template_path, 'w') as f:
+        f.write(app_manifest_template)
+
+
 def config_setup():
     try:
         with open('/home/'+getpass.getuser()+'/.oasees_sdk/config.json', 'r') as f:
@@ -794,7 +957,13 @@ def config_setup():
         click.echo("Error: config file not found.")
     
 
-
+def download_markdown(url):
+    try:
+        response = requests.get(url)
+        response.raise_for_status()  # Check for HTTP errors
+        return response.text
+    except requests.exceptions.RequestException as e:
+        print(f"Error downloading the file: {e}")
 
 
 
