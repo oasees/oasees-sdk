@@ -60,7 +60,7 @@ def _getDevices():
 def _getPurchases():
     if (_ACCOUNT_ADDRESS):
 
-        client = ipfshttpclient.connect(f"/ip4/{_IPFS_HOST}/tcp/5001")                       # IPFS
+        client = ipfshttpclient.connect(f"/ip4/{_IPFS_HOST}/tcp/5001")                    
 
         results = __marketplace.caller({'from': _ACCOUNT_ADDRESS}).getMyNfts()
         purchases=[]
@@ -87,16 +87,15 @@ def _getClusters():
     devices = __marketplace.caller({'from':_ACCOUNT_ADDRESS}).getMyDevices()
     clusters = []
 
-    client = ipfshttpclient.connect(f"/ip4/{_IPFS_HOST}/tcp/5001") 
+   
 
     for dao in daos:
         if(dao[6]):
             token_id = dao[5]
             config_hash = __nft.functions.tokenURI(token_id).call()
 
-            meta = client.cat(dao[2])
-            meta = meta.decode("UTF-8")
-            cluster_description = json.loads(meta)
+            resp = requests.post(f"http://{_IPFS_HOST}:5001/api/v0/cat?arg={dao[2]}")
+            cluster_description = json.loads(resp.content.decode("UTF-8"))
 
             clusters.append({'name': cluster_description['dao_name'], 'config_hash':config_hash, 'cluster_ip': cluster_description['cluster_ip']})
 
@@ -104,14 +103,11 @@ def _getClusters():
         if(device[8]):
             token_id = device[1]
             config_hash = __nft.functions.tokenURI(token_id).call()
-
-            meta = client.cat(device[5])
-            meta = meta.decode("UTF-8")
-            cluster_description = json.loads(json.loads(meta))
+            resp = requests.post(f"http://{_IPFS_HOST}:5001/api/v0/cat?arg={dao[5]}")
+            cluster_description = json.loads(resp.content.decode("UTF-8"))
 
             clusters.append({'name': cluster_description['title'], 'config_hash':config_hash, 'cluster_ip': cluster_description['cluster_ip']})
 
-    client.close()
 
     return clusters
 

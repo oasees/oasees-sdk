@@ -3,7 +3,6 @@ import time
 import click
 import getpass
 import json
-import ipfshttpclient
 import requests
 import web3
 import socket
@@ -11,6 +10,8 @@ import os
 from dotenv import load_dotenv
 import yaml
 from kubernetes import client,config
+from .oasees_ml_ops import sdk_manager_manifest
+from .ipfs_client import ipfs_get,ipfs_upload
 
 ipfs_manifest_str = """apiVersion: apps/v1
 kind: Deployment
@@ -296,10 +297,13 @@ def init_cluster(price):
         click.echo(result)
         echo.wait()
 
-        
+        # _cluster_config = yaml.dump(cluster_config)
+        _cluster_config = json.dumps(cluster_config)
 
-        client = ipfshttpclient.connect("/ip4/{}/tcp/5001".format(config['IPFS_IP']))
-        cluster_config_hash = client.add_json(cluster_config)
+        cluster_config_hash = ipfs_upload(_cluster_config,config['IPFS_IP'])
+
+        # client = ipfshttpclient.connect("/ip4/{}/tcp/5001".format(config['IPFS_IP']))
+        # cluster_config_hash = client.add_json(cluster_config)
         click.echo(cluster_config_hash)
 
 
@@ -317,10 +321,35 @@ def init_cluster(price):
 
         token_id=int(tx_json['logs'][2]['data'],16)
 
-
+        usr='oasees'
+        _pass='o@sees'
+        _pwd='/home/oasees/Desktop/training-workloads'
 
 
         if(price==0):
+            master_ip = ip[0]
+            mlops_template = sdk_manager_manifest
+            mlops_template = mlops_template.replace('REPLACE_CONFIG_CID',cluster_config_hash)
+            mlops_template = mlops_template.replace('REPLACE_IPFS_API_URL',"http://{}:31005/api/v0".format(master_ip))
+            mlops_template = mlops_template.replace('REPLACE_OASEES_IPFS_API_URL',"http://{}:5001/api/v0".format(config['IPFS_IP']))
+            mlops_template = mlops_template.replace('REPLACE_OASEES_IPFS_IP',config['IPFS_IP'])
+            mlops_template = mlops_template.replace('REPLACE_IPFS_ENDPOINT',"http://{}:31005/api/v0".format(master_ip))
+            mlops_template = mlops_template.replace('REPLACE_USERNAME',usr)
+            mlops_template = mlops_template.replace('REPLACE_PASS',_pass)
+            mlops_template = mlops_template.replace('REPLACE_PWD',_pwd)
+            mlops_template = mlops_template.replace('REPLACE_INDEXER_ENDPOINT',"http://{}:31007/api/v0".format(master_ip))
+
+
+            echo = subprocess.Popen(['echo', mlops_template], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            result = subprocess.check_output(['kubectl','apply','-f','-'], stdin=echo.stdout)
+            click.echo(result)
+            echo.wait()
+
+
+
+
+
+
             dao_args = {
                 "DAO_NAME": socket.gethostname(),
                 "DAO_DESC": "A Cluster created with Oasees SDK.",
@@ -345,8 +374,11 @@ def init_cluster(price):
             }
 
 
-            dao_info_hash = client.add_json(dao_info)
-            client.close()
+
+            dao_info_hash = ipfs_upload(json.dumps(dao_info),config['IPFS_IP'])
+
+            # dao_info_hash = client.add_json(dao_info)
+            # client.close()
             
 
             transaction = marketplace_contract.functions.makeDao(nft_address,0,dao_info_hash,token_id,True).build_transaction({
@@ -369,6 +401,9 @@ def init_cluster(price):
                     break
 
 
+            
+
+
             click.echo("Cluster successfully deployed.")
 
         else:
@@ -379,8 +414,9 @@ def init_cluster(price):
             }
 
             metadata = json.dumps(metadata)
-            meta_hash = client.add_json(metadata)
-            client.close()
+            meta_hash = ipfs_upload(metadata,config['IPFS_IP'])
+            # meta_hash = client.add_json(metadata)
+            # client.close()
 
             market_fee = marketplace_contract.functions.LISTING_FEE().call()
 
@@ -407,6 +443,7 @@ def init_cluster(price):
 @cli.command()
 def get_token():
     '''Retrieves the token required to join the cluster.'''
+
     try:
         token = subprocess.run(['sudo', 'cat','/var/lib/rancher/k3s/server/token'],  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         click.echo(token.stdout)
@@ -450,7 +487,7 @@ def join_cluster(ip,token,iface):
         if(iface):
             result = subprocess.check_output(['sh','-s','-','--flannel-iface', iface, '--node-label', 'user='+getpass.getuser()], env={'K3S_URL' : 'https://'+ip+':6443', 'K3S_TOKEN': token}, stdin=curl.stdout)
         else:
-            result = subprocess.check_output(['sh','-s','-' '--node-label', 'user='+getpass.getuser()], env={'K3S_URL' : 'https://'+ip+':6443', 'K3S_TOKEN': token}, stdin=curl.stdout)
+            result = subprocess.check_output(['sh','-s','-','--node-label', 'user='+getpass.getuser()], env={'K3S_URL' : 'https://'+ip+':6443', 'K3S_TOKEN': token}, stdin=curl.stdout)
         click.echo(result)
         curl.wait()
     except FileNotFoundError:
@@ -541,11 +578,16 @@ def register_new_nodes():
             }
 
             metadata = json.dumps(metadata)
+            device_content = json.dumps(device_content)
 
-            client = ipfshttpclient.connect("/ip4/{}/tcp/5001".format(config['IPFS_IP']))
-            meta_hash = client.add_json(metadata)
-            content_hash = client.add_json(device_content)
-            client.close()
+            meta_hash = ipfs_upload(metadata,config['IPFS_IP'])
+            content_hash = ipfs_upload(device_content,config['IPFS_IP'])
+
+
+            # client = ipfshttpclient.connect("/ip4/{}/tcp/5001".format(config['IPFS_IP']))
+            # meta_hash = client.add_json(metadata)
+            # content_hash = client.add_json(device_content)
+            # client.close()
 
 
             market_fee = marketplace_contract.functions.LISTING_FEE().call()
@@ -601,11 +643,15 @@ def register_new_nodes():
 
             if(config['DAO_TOKEN_ID']!=-1):
                 dao_content_hash = nft_contract.functions.tokenURI(config['DAO_TOKEN_ID']).call()
-                client = ipfshttpclient.connect("/ip4/{}/tcp/5001".format(config['IPFS_IP']))
-                dao_content = client.cat(dao_content_hash)
-                dao_content = dao_content.decode("UTF-8")
+
+                dao_content = ipfs_get(dao_content_hash,config['IPFS_IP'])
                 dao_content = json.loads(dao_content)
-                client.close()
+
+                # client = ipfshttpclient.connect("/ip4/{}/tcp/5001".format(config['IPFS_IP']))
+                # dao_content = client.cat(dao_content_hash)
+                # dao_content = dao_content.decode("UTF-8")
+                # dao_content = json.loads(dao_content)
+                # client.close()
 
                 token_contract = w3.eth.contract(address=dao_content['token_address'], abi=dao_content['token_abi'])
 
@@ -669,11 +715,13 @@ def apply_dao_logic(dao_content_hash):
     with open('/home/'+getpass.getuser()+'/.oasees_sdk/config.json', 'r') as f:
         config = json.load(f)
 
-    client = ipfshttpclient.connect("/ip4/{}/tcp/5001".format(config['IPFS_IP']))
-    dao_content = client.cat(dao_content_hash)
-    dao_content = dao_content.decode("UTF-8")
+    dao_content = ipfs_get(dao_content_hash,config['IPFS_IP'])
+
+    # client = ipfshttpclient.connect("/ip4/{}/tcp/5001".format(config['IPFS_IP']))
+    # dao_content = client.cat(dao_content_hash)
+    # dao_content = dao_content.decode("UTF-8")
     dao_content = json.loads(dao_content)
-    client.close()
+
 
 
     w3 = web3.Web3(web3.HTTPProvider("http://{}:8545".format(config['BLOCKCHAIN_IP'])))
