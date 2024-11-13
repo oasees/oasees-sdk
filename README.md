@@ -27,7 +27,8 @@ Ensure that pip is present on your machine. If not, install it:
 
 Install with pip:
 
-    pip install oasees_sdk
+    pip install git+https://github.com/oasees/oasees-sdk.git
+  
 
 </li>
 
