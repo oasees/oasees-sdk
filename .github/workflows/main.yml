@@ -48,4 +48,4 @@ jobs:
     runs-on: oasees-sdk-master
       steps:
         - name: Check token
-          run: echo ${needs.k3s-cluster-init.token.outputs.token}
+          run: "echo ${needs.k3s-cluster-init.token.outputs.token}"
