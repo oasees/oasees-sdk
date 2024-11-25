@@ -10,7 +10,7 @@ on:
 
 jobs:
   k3s-cluster-init:
-    runs-on: oasees-sdk-master
+    runs-on: "oasees-sdk-master"
 
     steps:
       - name: Checkout repository
