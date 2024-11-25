@@ -29,6 +29,6 @@ jobs:
     needs: k3s-cluster-init
     steps:
       - env:
-          OUTPUT1: ${{needs.k3s-cluster-init.token.output1}}
+          OUTPUT1: ${{needs.k3s-cluster-init.outputs.output1}}
         name: Check token
         run: echo "$OUTPUT1"
