@@ -1,0 +1,51 @@
+name: CI for Oasees-sdk
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  k3s-cluster-init:
+    runs-on: oasees-sdk-master
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Check oasees-sdk cli
+        run: oasees-sdk --help
+
+      # - name: Set up .env file
+      #   run: |
+      #     sed -i "s/{YOUR_HOST_IP}/localhost/g" .env
+
+      - name: Get cluster token
+        id: token
+        run: echo "token=$(echo $(oasees-sdk get-token))" >> "$GITHUB_OUTPUT" 
+
+      # - name: Wait for services to be ready
+      #   run: |
+      #     echo "Waiting for services to be up..."
+      #     sleep 30
+
+      # - name: Run tests
+      #   run: |
+      #     # Check the portal
+      #     curl -f http://localhost:3000 || (echo "Portal service failed!" && exit 1)
+      #     # Check the blockchain node
+      #      curl -X POS curl -X POST -H 'Content-Type: application/json' \
+      #         --data '{"jsonrpc":"2.0", "id": "1", "method":"eth_blockNumber", "params":[]}' \
+      #          http://localhost:8545/ || (echo "Blockchain service failed!" && exit 1)
+      #     # Check the IPFS node
+      #     curl -f http://localhost:5001/webui || (echo "IPFS service failed!" && exit 1)
+      #     # Check the Flask Notebooks API
+      #     #curl -f http://localhost:6001 || (echo "Flask API service failed!" && exit 1)
+  add-worker:
+    runs-on: oasees-sdk-master
+      steps:
+        - name: Check token
+          run: echo ${needs.k3s-cluster-init.token.outputs.token}
