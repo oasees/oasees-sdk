@@ -3,10 +3,10 @@ name: CI for Oasees-sdk
 on:
   push:
     branches:
-      - main
-  pull_request:
-    branches:
-      - main
+      - master
+  # pull_request:
+  #   branches:
+  #     - main
 
 jobs:
   k3s-cluster-init:
@@ -46,6 +46,6 @@ jobs:
       #     #curl -f http://localhost:6001 || (echo "Flask API service failed!" && exit 1)
   add-worker:
     runs-on: oasees-sdk-master
-      steps:
-        - name: Check token
-          run: "echo ${needs.k3s-cluster-init.token.outputs.token}"
+    steps:
+      - name: Check token
+        run: echo "${needs.k3s-cluster-init.token.outputs.token}"
