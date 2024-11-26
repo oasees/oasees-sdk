@@ -17,8 +17,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      - name: Check oasees-sdk cli
-        run: oasees-sdk --help
+      - name: Set up oasees-sdk master
+        run: oasees-sdk init-cluster
 
       - name: Get cluster token
         id: token
