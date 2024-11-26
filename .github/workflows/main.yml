@@ -31,5 +31,12 @@ jobs:
       - env:
           OUTPUT1: ${{needs.k3s-cluster-init.outputs.output1}}
         name: Join cluster
-        # run: echo "$OUTPUT1"
-        run: oasees-sdk join-cluster --ip 10.0.19.182 --token $OUTPUT1
+        run: echo "$OUTPUT1"
+        # run: oasees-sdk join-cluster --ip 10.0.19.182 --token $OUTPUT1
+
+  test-cluster:
+    runs-on: oasees-sdk-master
+    steps:
+        - name: test cluster
+          run: echo "$(kubectl get nodes)"
+
