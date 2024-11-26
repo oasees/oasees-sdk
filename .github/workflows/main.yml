@@ -25,10 +25,11 @@ jobs:
         run: echo "token=$(echo $(oasees-sdk get-token))" >> "$GITHUB_OUTPUT" 
 
   add-worker:
-    runs-on: oasees-sdk-master
+    runs-on: oasees-sdk-worker
     needs: k3s-cluster-init
     steps:
       - env:
           OUTPUT1: ${{needs.k3s-cluster-init.outputs.output1}}
-        name: Check token
-        run: echo "$OUTPUT1"
+        name: Join cluster
+        # run: echo "$OUTPUT1"
+        run: oasees-sdk join-cluster --ip 10.0.19.182 --token $OUTPUT1
