@@ -36,6 +36,7 @@ jobs:
 
   test-cluster:
     runs-on: oasees-sdk-master
+    needs: add-worker
     steps:
         - name: test cluster
           run: echo "$(kubectl get nodes)"
