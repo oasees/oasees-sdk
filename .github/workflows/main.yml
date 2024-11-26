@@ -41,3 +41,13 @@ jobs:
         - name: test cluster
           run: echo "$(kubectl get nodes)"
 
+        - name: uninstall master
+          run: oasees-sdk uninstall master
+
+  uninstall-worker:
+    runs-on: oasees-sdk-worker
+    needs: k3s-cluster-init
+    steps:
+      - name: uninstall worker
+        run: oasees-sdk uninstall agent
+
