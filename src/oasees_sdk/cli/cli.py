@@ -1,3 +1,4 @@
+import shutil
 import subprocess
 import time
 import click
@@ -70,6 +71,39 @@ def cli(ctx):
 
 
 # @click.option('--price', required=False, type=float, default=0, help="")
+def kompose_install():
+    '''Installs kompose on the user's path'''
+
+    # Detect system architecture
+    machine = platform.machine().lower()
+    
+    # Determine download URL based on architecture
+    if machine in ('x86_64', 'amd64'):
+        url = "https://github.com/kubernetes/kompose/releases/download/v1.35.0/kompose-linux-amd64"
+    elif machine in ('arm64', 'aarch64'):
+        url = "https://github.com/kubernetes/kompose/releases/download/v1.35.0/kompose-linux-arm64"
+    else:
+        print(f"Unsupported architecture: {machine}")
+        sys.exit(1)
+    
+    print(f"Detected architecture: {machine}")
+    print(f"Downloading Kompose from: {url}")
+    
+    try:
+        # Download Kompose
+        subprocess.run(["curl", "-L", "-o", "kompose", url], check=True)
+        
+        # Make it executable
+        subprocess.run(["chmod", "+x", "kompose"], check=True)
+        
+        # Move to /usr/local/bin (requires sudo)
+        subprocess.run(["sudo", "mv", "kompose", "/usr/local/bin/"], check=True)
+        
+        click.secho("Kompose installed successfully", fg="green")
+        return True
+    except subprocess.CalledProcessError as e:
+        click.secho(f"Error during installation: {e}",fg="red")
+        sys.exit(1)
 def helm_install():
     '''Installs helm on the user's path'''
 
@@ -83,9 +117,10 @@ def helm_install():
         subprocess.run(["./get_helm.sh"], check=True)
         Path("get_helm.sh").unlink()  # Cleanup
         
-        print("Helm installed successfully")
+        click.secho("Helm installed successfully", fg="green")
+        return True
     except subprocess.CalledProcessError as e:
-        print(f"Failed to install Helm: {e}")
+        click.secho(f"Failed to install Helm: {e}", fg="red")
         sys.exit(1)
 
 def helm_add_oasees_repo():
@@ -121,24 +156,48 @@ def run_helm_command(cmd:list):
     except subprocess.CalledProcessError as e:
         return e.stderr
 
-@cli.command()
-def init_cluster():
 
-    try:
-        curl = subprocess.Popen(['curl','-sfL', 'https://get.k3s.io'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        result = subprocess.check_output(['sh','-s','-','--write-kubeconfig-mode','644', '--write-kubeconfig', '/home/'+getpass.getuser()+'/.kube/config', '--node-label', 'user='+getpass.getuser()], stdin=curl.stdout)
-        click.echo(result)
-        curl.wait()
-
-    except subprocess.CalledProcessError as e:
-        return e.stderr
+def check_required_tools():
+    """Check if helm and kompose are installed and available in PATH."""
+    helm_installed = shutil.which("helm") is not None
+    kompose_installed = shutil.which("kompose") is not None
     
-    helm_install()
-    click.echo('\n')
-    helm_add_oasees_repo()
-    click.echo('\n')
-    helm_install_oasees_user()
+    click.echo("Checking if the required tools are installed on your platform:")
+    click.echo(f"Helm: {'✅ installed' if helm_installed else '❌ not found'}")
+    click.echo(f"Kompose: {'✅ installed' if kompose_installed else '❌ not found'}")
 
+    if helm_installed and kompose_installed:
+        return True
+    else:
+        if click.confirm("\nHelm and Kompose are needed in order to use all of the OASEES SDK features. Would you like to install them now?"):
+            helm_install()
+            kompose_install()
+            return True
+        else:
+            return False
+
+
+@cli.command()
+def init():
+
+    if(check_required_tools()):
+        try:
+            curl = subprocess.Popen(['curl','-sfL', 'https://get.k3s.io'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            result = subprocess.check_output(['sh','-s','-','--write-kubeconfig-mode','644', '--write-kubeconfig', '/home/'+getpass.getuser()+'/.kube/config', '--node-label', 'user='+getpass.getuser()], stdin=curl.stdout)
+            click.echo(result)
+            curl.wait()
+
+        except subprocess.CalledProcessError as e:
+            return e.stderr
+
+        helm_add_oasees_repo()
+        click.echo('\n')
+        helm_install_oasees_user()
+        click.echo('\n')
+
+        click.secho("Kubernetes cluster initialized successfully!",fg="green")
+    else:
+        click.secho("Please install Helm and / or Kompose before trying again.", fg="red")
 
 @cli.command()
 @click.argument('role', type=str)
@@ -172,7 +231,7 @@ def get_token():
 @click.option('--ip', required=True, help="The cluster's master ip address.")
 @click.option('--token', required=True, help="The cluster's master token.")
 @click.option('--iface', required=False, help="The network interface you want to join with (tun0 if you're using a VPN connection).")
-def join_cluster(ip,token,iface):
+def join(ip,token,iface):
     '''Joins the current machine to the specified cluster, using the specified interface if one is provided.'''
     try:
         curl = subprocess.Popen(['curl','-sfL', 'https://get.k3s.io'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -185,3 +244,139 @@ def join_cluster(ip,token,iface):
         curl.wait()
     except FileNotFoundError:
         click.echo("Error: K3S cluster could not be joined.\n")
+
+
+@cli.command()
+@click.argument('compose_file', type=str)
+@click.argument('output_dir', type=str)
+def convert_app(compose_file, output_dir):
+    """Convert Docker Compose to Kubernetes manifests using kompose"""
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
+    os.makedirs(output_dir)
+    
+    print("Converting Docker Compose using Kompose...")
+    subprocess.run(["kompose", "convert", "-f", compose_file, "-o", output_dir], check=True)
+
+    process_yaml_files(output_dir)
+
+def process_yaml_files(output_dir):
+    """Process generated YAML files to add nodeSelectors and other modifications"""
+    yaml_files = list(Path(output_dir).glob("*.yaml")) + list(Path(output_dir).glob("*.yml"))
+    
+    for yaml_file in yaml_files:
+        print(f"Processing {yaml_file}...")
+        
+        with open(yaml_file, 'r') as f:
+            data = list(yaml.safe_load_all(f))
+        
+        modified = False
+        
+        for doc in data:
+            if not doc:
+                continue
+                
+            kind = doc.get('kind', '')
+            
+            # Process Deployments
+            if kind == 'Deployment':
+                metadata = doc.get('metadata', {})
+                annotations = metadata.get('annotations', {})
+                
+                # Handle nodeSelector
+                node_selector_value = annotations.get('oasees.device')
+                if node_selector_value:
+                    if 'spec' not in doc:
+                        doc['spec'] = {}
+                    if 'template' not in doc['spec']:
+                        doc['spec']['template'] = {}
+                    if 'spec' not in doc['spec']['template']:
+                        doc['spec']['template']['spec'] = {}
+                    
+                    doc['spec']['template']['spec']['nodeSelector'] = {
+                        'kubernetes.io/hostname': node_selector_value
+                    }
+                    modified = True
+                
+                # Handle sensor resources
+                sensor_value = annotations.get('oasees.sensor')
+                if sensor_value:
+                    if 'spec' not in doc:
+                        doc['spec'] = {}
+                    if 'template' not in doc['spec']:
+                        doc['spec']['template'] = {}
+                    if 'spec' not in doc['spec']['template']:
+                        doc['spec']['template']['spec'] = {}
+                    if 'containers' not in doc['spec']['template']['spec']:
+                        continue
+                    
+                    resource_map = {
+                        'sound': {'smarter-devices/snd': 1},
+                        'video': {'smarter-devices/video0': 1},
+                        'bluetooth': {'smarter-devices/hci0': 1}
+                    }
+                    
+                    if sensor_value in resource_map:
+                        doc['spec']['template']['spec']['containers'][0]['resources'] = {
+                            'limits': resource_map[sensor_value]
+                        }
+                        modified = True
+            
+            # Process Services
+            elif kind == 'Service':
+                expose_value = doc.get('metadata', {}).get('annotations', {}).get('oasees.expose')
+                if expose_value:
+                    doc['spec']['type'] = 'NodePort'
+                    doc['spec']['ports'][0]['nodePort'] = int(expose_value)
+                    modified = True
+        
+        if modified:
+            with open(yaml_file, 'w') as f:
+                yaml.dump_all(data, f, default_flow_style=False)
+@cli.command()
+@click.argument('folder', type=str)
+def deploy_app(folder):
+    """Deploy all YAML/JSON manifests in a folder using kubectl"""
+    files = list(Path(folder).glob('*.yaml')) + list(Path(folder).glob('*.yml'))
+    
+    if not files:
+        print(f"No manifests found in {folder}")
+        return False
+
+    success = True
+    for f in files:
+        try:
+            print(f"Deploying {f.name}...")
+            subprocess.run(['kubectl', 'apply', '-f', str(f)], check=True)
+        except subprocess.CalledProcessError:
+            print(f"Failed to deploy {f.name}")
+            success = False
+    
+    if success:
+        click.secho("All manifests deployed successfully!", fg="green")
+    else:
+        click.secho("Some manifests failed to deploy.", fg="red")
+
+@cli.command()
+@click.argument('folder', type=str)
+def delete_app(folder):
+    """Delete all YAML/JSON manifests in a folder using kubectl"""
+    files = list(Path(folder).glob('*.yaml')) + list(Path(folder).glob('*.yml'))
+    
+    if not files:
+        print(f"No manifests found in {folder}")
+        return False
+
+    success = True
+    for f in files:
+        try:
+            print(f"Deploying {f.name}...")
+            subprocess.run(['kubectl', 'delete', '-f', str(f)], check=True)
+        except subprocess.CalledProcessError:
+            print(f"Failed to deploy {f.name}")
+            success = False
+    
+    if success:
+        click.secho("All manifests deleted successfully!", fg="green")
+    else:
+        click.secho("Some manifests failed to delete.", fg="red")
