@@ -139,8 +139,8 @@ def helm_add_oasees_repo():
     run_helm_command(update_cmd)
 
 
-def helm_install_oasees_user():
-    cmd = ["upgrade", "--install", "oasees-user", "oasees-charts/oasees-user", "--create-namespace"]
+def helm_install_oasees_user(expose_ip):
+    cmd = ["upgrade", "--install", "oasees-user", "oasees-charts/oasees-user", "--create-namespace", "--set", f"exposedIP={expose_ip}"]
     run_helm_command(cmd)
 
 
@@ -186,23 +186,30 @@ def get_nodes():
         click.echo("Error: No connection to cluster found.")
 
 @cli.command()
-@click.option('--expose-ip', required=False, help="Expose a node's IP if you plan ")
-def init():
+@click.option('--expose-ip', required=False, help="Expose a node's IP if you plan accessing the stack remotely.")
+@click.option('--update', required=False, is_flag=True, help="Use this to skip cluster initialization.")
+def init(expose_ip,update):
+    '''Sets up the OASEES cluster.'''
 
     if(check_required_tools()):
+        if not update:
+            try:
+                curl = subprocess.Popen(['curl','-sfL', 'https://get.k3s.io'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                result = subprocess.check_output(['sh','-s','-','--write-kubeconfig-mode','644', '--write-kubeconfig', '/home/'+getpass.getuser()+'/.kube/config', '--node-label', 'user='+getpass.getuser()], stdin=curl.stdout)
+                click.echo(result)
+                curl.wait()
+
+            except subprocess.CalledProcessError as e:
+                return e.stderr
+        
         try:
-            curl = subprocess.Popen(['curl','-sfL', 'https://get.k3s.io'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            result = subprocess.check_output(['sh','-s','-','--write-kubeconfig-mode','644', '--write-kubeconfig', '/home/'+getpass.getuser()+'/.kube/config', '--node-label', 'user='+getpass.getuser()], stdin=curl.stdout)
-            click.echo(result)
-            curl.wait()
-
-        except subprocess.CalledProcessError as e:
-            return e.stderr
-
-        helm_add_oasees_repo()
-        click.echo('\n')
-        helm_install_oasees_user()
-        click.echo('\n')
+            helm_add_oasees_repo()
+            click.echo('\n')
+            helm_install_oasees_user(expose_ip)
+            click.echo('\n')
+        except Exception as e:
+            click.secho("Failed to install OASEES user chart.", fg="red")
+            sys.exit(1)
 
         click.secho("Kubernetes cluster initialized successfully!",fg="green")
     else:

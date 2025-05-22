@@ -15,7 +15,7 @@ from .mlops.templating_functions import create_quantum_template,convert_quantum_
 from .mlops.templating_functions import create_fl_template, convert_fl_template
 from .mlops.env_vars import Envs
 
-create_ml_template = create_template
+create_template = create_template
 convert_to_pipeline = convert_to_pipeline
 create_quantum_template = create_quantum_template
 convert_quantum_template = convert_quantum_template
