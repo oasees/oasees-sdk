@@ -22,33 +22,33 @@ convert_quantum_template = convert_quantum_template
 
 from kubernetes import client, config
 from kubernetes.client import ApiException
-from .utility_functions import _getPurchases, _getDevices, _getClusters, _getConfig, _switch_cluster, _get_cluster_from_node, _IPFS_HOST
+# from .utility_functions import _getPurchases, _getDevices, _getClusters, _getConfig, _switch_cluster, _get_cluster_from_node, _IPFS_HOST
 
-def get_master_ip():
-    clusters = _getClusters()
-    master_ip = ""
-    if(len(clusters)):
-        master_ip = clusters[0]['cluster_ip']
+# def get_master_ip():
+#     clusters = _getClusters()
+#     master_ip = ""
+#     if(len(clusters)):
+#         master_ip = clusters[0]['cluster_ip']
 
-    return master_ip
+#     return master_ip
 
-MASTER_IP = get_master_ip()
-
-
-Envs.set_envs(f"http://{MASTER_IP}:31005/api/v0",f"http://{MASTER_IP}:31007")
+# MASTER_IP = get_master_ip()
 
 
-def my_clusters():
-    clusters = _getClusters()
+Envs.set_envs(f"http://oasees-ipfs.default.svc.cluster.local:5001/api/v0",f"http://oasees-mlops.default.svc.cluster.local:31007")
 
 
-    print("\nOwned clusters")
-    print("---------------------------------")
-    i=1
-    if(clusters):
-        for cluster in clusters:
-            print(str(i) + ") " + cluster['name'])
-            i+=1
+# def my_clusters():
+#     clusters = _getClusters()
+
+
+#     print("\nOwned clusters")
+#     print("---------------------------------")
+#     i=1
+#     if(clusters):
+#         for cluster in clusters:
+#             print(str(i) + ") " + cluster['name'])
+#             i+=1
     
-    else:
-        print("You do not have any Kubernetes clusters registered at the moment.")
+#     else:
+#         print("You do not have any Kubernetes clusters registered at the moment.")

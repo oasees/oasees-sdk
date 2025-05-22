@@ -176,8 +176,17 @@ def check_required_tools():
         else:
             return False
 
+def get_nodes():
+    '''Retrieves information on the cluster's nodes.'''
+    try:
+        result = subprocess.run(["kubectl", "get", "nodes", "-o", "jsonpath='{.items[*].metadata}'"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        node_names = result.stdout.strip().strip("'").split()
+        return node_names
+    except FileNotFoundError:
+        click.echo("Error: No connection to cluster found.")
 
 @cli.command()
+@click.option('--expose-ip', required=False, help="Expose a node's IP if you plan ")
 def init():
 
     if(check_required_tools()):
@@ -380,3 +389,45 @@ def delete_app(folder):
         click.secho("All manifests deleted successfully!", fg="green")
     else:
         click.secho("Some manifests failed to delete.", fg="red")
+
+@cli.command()
+def enable_gpu_operator():
+    '''Enables the GPU Operator on the cluster'''
+
+    click.secho("Enabling GPU Operator...", fg="yellow")
+
+    command = [
+        "helm", "install", "gpu-operator", "-n", "gpu-operator", "--create-namespace", "nvidia/gpu-operator",
+        "--version=v25.3.0",
+        "--set", "toolkit.env[0].name=CONTAINERD_CONFIG",
+        "--set", "toolkit.env[0].value=/var/lib/rancher/k3s/agent/etc/containerd/config.toml",
+        "--set", "toolkit.env[1].name=CONTAINERD_SOCKET",
+        "--set", "toolkit.env[1].value=/run/k3s/containerd/containerd.sock",
+        "--set", "toolkit.env[2].name=CONTAINERD_RUNTIME_CLASS",
+        "--set", "toolkit.env[2].value=nvidia",
+        "--set", "toolkit.env[3].name=CONTAINERD_SET_AS_DEFAULT",
+        "--set-string", "toolkit.env[3].value=true"
+    ]
+
+    try:
+        result = subprocess.run(command, check=True, text=True)
+        click.secho("GPU Operator enabled successfully!", fg="green")
+    except subprocess.CalledProcessError as e:
+        click.secho(f"Failed to enable GPU Operator: {e}", fg="red")
+        sys.exit(1)
+
+# @cli.command()
+# def mlops_add_node():
+#     '''Install the components needed to execute ML workloads on the specified node.'''
+#     node_name = ''
+#     mount_path = ''
+#     gpu_enabled = False
+
+#     nodes = get_nodes()
+#     click.echo("Available nodes:")
+#     for node in nodes:
+#         click.echo(dict(node))
+
+#     click.echo('\n')
+
+#     click.echo("Choose the node you want to use for training:")

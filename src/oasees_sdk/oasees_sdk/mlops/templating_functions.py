@@ -39,17 +39,6 @@ def create_template(filename):
     with open(runtime_params_filepath, 'w') as f:
         f.write(runtime_params)
 
-    pipeline_exec_sh_filepath = os.path.join(filename, 'pipeline_exec.sh')
-    with open(pipeline_exec_sh_filepath, 'w') as f:
-        f.write(pipeline_exec_sh)
-
-
-
-    runtime_pipeline_sh_filepath = os.path.join(filename, 'runtime_pipeline.sh')
-    with open(runtime_pipeline_sh_filepath, 'w') as f:
-        f.write(runtime_pipeline_sh)
-
-
     return_results_filepath = os.path.join(filename, 'return_results.py')
     with open(return_results_filepath, 'w') as f:
         f.write(return_results)
@@ -58,6 +47,10 @@ def create_template(filename):
     with open(dockerfile_filepath, 'w') as f:
         f.write(DockerFile_template)
 
+
+    deploy_filepath = os.path.join(filename, 'deploy.py')
+    with open(deploy_filepath, 'w') as f:
+        f.write(deploy_ml)
 
 
 
@@ -128,7 +121,7 @@ def convert_to_pipeline(folder_name):
                 os.remove(c)
 
     if(result.stdout):
-        # print("Template is a valid workload")
+        print("Template is a valid workload")
         upload_to_ipfs(folder_name,Envs.ipfs_endpoint,'ML')
         return
 
@@ -182,7 +175,7 @@ def upload_to_indexer(project_name, cid,_type):
     }
 
     response = requests.post(url, json=payload, headers=headers)
-
+    print(response.json())
     if response.status_code == 200:
         # print('Workload is ready for deployment')
         print(f"{project_name} Workload is ready! Go to SDK Manager...")
@@ -210,8 +203,6 @@ def modify_notebook(folder_name):
     PARAMS = ['## Execution Parameters']
     IMPORTS = ['## Imports']
     MODEL_DEF = ['## Model Definition']
-    DEPLOYMENT_CODE = ['## Deployment Code']
-
 
     _imports = ''
     _model_def = ''
@@ -223,9 +214,9 @@ def modify_notebook(folder_name):
         if notebook_json['cells'][i]['source'] == PARAMS:
             params = notebook_json['cells'][i + 1]['source']
             source_code = ''.join(params)
+            print(source_code)
             local_vars = {}
             exec(source_code, {}, local_vars)
-
 
             params = local_vars
             exec_params ={
@@ -259,18 +250,11 @@ def modify_notebook(folder_name):
 
             # break
 
-        if notebook_json['cells'][i]['source'] == DEPLOYMENT_CODE:
-            _deployment_code = notebook_json['cells'][i + 1]['source']
-            _deployment_code = ''.join(_deployment_code)
-            _deployment_code = _deployment_code.replace("'''","")
 
 
     with open(exported_file_path, 'w', encoding='utf-8') as file:
         file.write(_imports+"\n"+_model_def)
 
-
-    with open(deployment_file_path, 'w', encoding='utf-8') as file:
-        file.write(_imports+"\n"+_model_def+"\n"+_deployment_code)
 
 
     with open(mod_notebook_path, 'w', encoding='utf-8') as file:
@@ -370,13 +354,6 @@ def convert_fl_template(folder_name):
 
 
 
-
-
-    exec_api_server_sh_filepath = os.path.join(folder_name, 'exec_api_server.sh')
-    with open(exec_api_server_sh_filepath, 'w') as f:
-        f.write(exec_api_server)
-
-
     exec_flower_server_sh_filepath = os.path.join(folder_name, 'exec_flower_server.sh')
     with open(exec_flower_server_sh_filepath, 'w') as f:
         f.write(exec_flower_server)
@@ -385,20 +362,6 @@ def convert_fl_template(folder_name):
     with open(exec_flower_client_sh_filepath, 'w') as f:
         f.write(exec_flower_client)
 
-
-
-    exec_api_client_sh_filepath = os.path.join(folder_name, 'exec_api_client.sh')
-    with open(exec_api_client_sh_filepath, 'w') as f:
-        f.write(exec_api_client)
-
-    api_server_sh_filepath = os.path.join(folder_name, 'api_server.py')
-    with open(api_server_sh_filepath, 'w') as f:
-        f.write(api_server)
-
-
-    api_client_sh_filepath = os.path.join(folder_name, 'api_client.py')
-    with open(api_client_sh_filepath, 'w') as f:
-        f.write(api_client)
 
     return_results_filepath = os.path.join(folder_name, 'return_results.py')
     with open(return_results_filepath, 'w') as f:

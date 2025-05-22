@@ -29,7 +29,7 @@ notebook_json = {
         {
             "cell_type": "code",
             "execution_count": None,
-            "id": "3eeedb6c",
+            "id": "3eeedb5c",
             "metadata": {},
             "outputs": [],
             "source": []
@@ -37,7 +37,7 @@ notebook_json = {
 
         {
             "cell_type": "markdown",
-            "id": "f66d45a6",
+            "id": "f66d45a1",
             "metadata": {},
             "source": [
                 "## Set Parameters"
@@ -54,7 +54,7 @@ notebook_json = {
 
         {
             "cell_type": "markdown",
-            "id": "f66d45a6",
+            "id": "f66d45a2",
             "metadata": {},
             "source": [
                 "## Load Data"
@@ -63,7 +63,7 @@ notebook_json = {
         {
             "cell_type": "code",
             "execution_count": None,
-            "id": "3eeedb6c",
+            "id": "3eeedb61",
             "metadata": {},
             "outputs": [],
             "source": []
@@ -73,7 +73,7 @@ notebook_json = {
 
         {
             "cell_type": "markdown",
-            "id": "615b19a0",
+            "id": "615b19a1",
             "metadata": {},
             "source": [
                 "## Model Definition"
@@ -82,7 +82,7 @@ notebook_json = {
         {
             "cell_type": "code",
             "execution_count": None,
-            "id": "3eeedb6c",
+            "id": "3eeedb62",
             "metadata": {},
             "outputs": [],
             "source": []
@@ -139,31 +139,7 @@ notebook_json = {
             "source": [
                 "testing_logger = setup_logger('testing_logger', 'assets/testing_output.log')"
             ]
-        },
-        {
-            "cell_type": "markdown",
-            "id": "36907aba",
-            "metadata": {},
-            "source": [
-                "## Deployment Code"
-            ]
-        },
-        {
-            "cell_type": "code",
-            "execution_count": None,
-            "id": "fad80187",
-            "metadata": {},
-            "outputs": [],
-            "source": [
-                "\'\'\'\n",
-                "\n",
-                "\n",
-                "\n",
-                "\'\'\'"
-
-
-            ]
-        }        
+        }       
     ],
     "metadata": {
         "kernelspec": {
@@ -214,7 +190,7 @@ quantum_notebook_json = {
         },
         {
             "cell_type": "markdown",
-            "id": "f66d45a6",
+            "id": "f66d45a3",
             "metadata": {},
             "source": [
                 "## Execution"
@@ -223,7 +199,7 @@ quantum_notebook_json = {
         {
             "cell_type": "code",
             "execution_count": None,
-            "id": "3eeedb6c",
+            "id": "3eeedb63",
             "metadata": {},
             "outputs": [],
             "source": []
@@ -274,7 +250,7 @@ fl_json = {
         },
         {
             "cell_type": "markdown",
-            "id": "f66d45a6",
+            "id": "f66d45a4",
             "metadata": {},
             "source": [
                 "## Federated Learning Server"
@@ -283,7 +259,7 @@ fl_json = {
         {
             "cell_type": "code",
             "execution_count": None,
-            "id": "3eeedb6c",
+            "id": "3eeedb64",
             "metadata": {},
             "outputs": [],
             "source": []
@@ -291,7 +267,7 @@ fl_json = {
 
         {
             "cell_type": "markdown",
-            "id": "f66d45a6",
+            "id": "f66d45a5",
             "metadata": {},
             "source": [
                 "## Federated Learning Client"
@@ -300,7 +276,7 @@ fl_json = {
         {
             "cell_type": "code",
             "execution_count": None,
-            "id": "3eeedb6c",
+            "id": "3eeedb65",
             "metadata": {},
             "outputs": [],
             "source": []

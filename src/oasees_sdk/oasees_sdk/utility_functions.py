@@ -99,15 +99,6 @@ def _getClusters():
 
             clusters.append({'name': cluster_description['dao_name'], 'config_hash':config_hash, 'cluster_ip': cluster_description['cluster_ip']})
 
-    for device in devices:
-        if(device[8]):
-            token_id = device[1]
-            config_hash = __nft.functions.tokenURI(token_id).call()
-            resp = requests.post(f"http://{_IPFS_HOST}:5001/api/v0/cat?arg={dao[5]}")
-            cluster_description = json.loads(resp.content.decode("UTF-8"))
-
-            clusters.append({'name': cluster_description['title'], 'config_hash':config_hash, 'cluster_ip': cluster_description['cluster_ip']})
-
 
     return clusters
 
@@ -155,19 +146,3 @@ def _switch_cluster(cluster_number:int):
     
     else:
         print("You do not have any Kubernetes clusters registered at the moment.")
-
-
-
-# def __clusterJoined():
-#     results = __marketplace.caller({'from':__ACCOUNT_ADDRESS}).getJoinedDaos()
-#     clusterJoined = False
-
-#     client = ipfshttpclient.connect(f"/ip4/{__IPFS_HOST}/tcp/5001")  
-#     for r in results:
-#         if(r[6]):
-#             clusterJoined = True
-#             break
-
-#     client.close()
-
-#     return clusterJoined
