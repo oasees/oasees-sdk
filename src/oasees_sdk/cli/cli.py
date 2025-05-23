@@ -16,6 +16,7 @@ from .ipfs_client import ipfs_get,ipfs_upload
 import platform
 from pathlib import Path
 import sys
+import re
 
 
 @click.group(invoke_without_command=True)
@@ -179,9 +180,8 @@ def check_required_tools():
 def get_nodes():
     '''Retrieves information on the cluster's nodes.'''
     try:
-        result = subprocess.run(["kubectl", "get", "nodes", "-o", "jsonpath='{.items[*].metadata}'"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        node_names = result.stdout.strip().strip("'").split()
-        return node_names
+        result = subprocess.run(["kubectl", "get", "nodes", "-o", "json"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        return result.stdout
     except FileNotFoundError:
         click.echo("Error: No connection to cluster found.")
 
@@ -423,18 +423,42 @@ def enable_gpu_operator():
         click.secho(f"Failed to enable GPU Operator: {e}", fg="red")
         sys.exit(1)
 
-# @cli.command()
-# def mlops_add_node():
-#     '''Install the components needed to execute ML workloads on the specified node.'''
-#     node_name = ''
-#     mount_path = ''
-#     gpu_enabled = False
+@cli.command()
+def mlops_add_node():
+    '''Install the components needed to execute ML workloads on the specified node.'''
+    node_name = ''
+    mount_path = ''
+    gpu_enabled = 0
+    node_infos = json.loads(get_nodes())
+    nodes = []
 
-#     nodes = get_nodes()
-#     click.echo("Available nodes:")
-#     for node in nodes:
-#         click.echo(dict(node))
+    click.echo("Available nodes:")
+    for idx, node_info in enumerate(node_infos['items']):
+        name = node_info['metadata']['name']
+        gpu = any(re.match(r'nvidia.*',label) for label in node_info['metadata']['labels'])
 
-#     click.echo('\n')
+        click.echo(f"{idx+1}. {name} (GPU: {'Yes' if gpu else 'No'})")
+        nodes.append({'name': name, 'gpu': gpu})
 
-#     click.echo("Choose the node you want to use for training:")
+    click.echo('\n')
+
+    selection = int(click.prompt("Choose the node you want to use for training", type=click.Choice([str(i+1) for i in range(len(nodes))]), show_choices=False)) - 1
+    node_name = nodes[selection]['name']
+
+    if(nodes[selection]['gpu']):
+        gpu_enabled = 1 if click.confirm("Would you like to enable GPU support for this node?", default=True) else 0
+
+    click.echo()
+    click.secho(f'The current MLOPs image requires the designated node ({node_name}) to have a venv with all the required ML libraries already set up.', fg="yellow")
+    mount_path = click.prompt("Enter the path your venv is in (e.g. /home/<username>/venv)", type=str)
+
+    command = [
+        "helm", "upgrade" , "--install", f"training-worker-{node_name}", "oasees-charts/training-worker", "--set", f"nodeName={node_name}", "--set", f"mountPath={mount_path}", "--set", f"gpu={gpu_enabled}"
+    ]
+
+    try:
+        subprocess.run(command, check=True, text=True)
+        click.secho(f"Training components deployed successfully on {node_name}!", fg="green")
+    except subprocess.CalledProcessError as e:
+        click.secho(f"Error during the deployment of the training components.", fg="red")
+        sys.exit(1)
