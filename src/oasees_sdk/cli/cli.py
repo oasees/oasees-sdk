@@ -67,11 +67,57 @@ def cli(ctx):
 
         # Execute the Bash script and capture its output
         result = subprocess.run(['bash', '-c', bash_script], capture_output=True, text=True)
+        check_required_tools()
         click.echo(result.stdout)
         cli(['--help'])
 
 
 # @click.option('--price', required=False, type=float, default=0, help="")
+
+def ipfs_client_install():
+   '''Installs IPFS CLI on the user's path'''
+   
+   # Detect system architecture
+   machine = platform.machine().lower()
+   
+   # Determine download URL based on architecture
+   if machine in ('x86_64', 'amd64'):
+       url = "https://dist.ipfs.tech/kubo/v0.30.0/kubo_v0.30.0_linux-amd64.tar.gz"
+       filename = "kubo_v0.30.0_linux-amd64.tar.gz"
+   elif machine in ('arm64', 'aarch64'):
+       url = "https://dist.ipfs.tech/kubo/v0.30.0/kubo_v0.30.0_linux-arm64.tar.gz"
+       filename = "kubo_v0.30.0_linux-arm64.tar.gz"
+   else:
+       print(f"Unsupported architecture: {machine}")
+       sys.exit(1)
+   
+   print(f"Detected architecture: {machine}")
+   print(f"Downloading IPFS Kubo from: {url}")
+   
+   try:
+       # Download IPFS Kubo
+       subprocess.run(["curl", "-L", "-o", filename, url], check=True)
+       
+       # Extract the tar.gz file
+       subprocess.run(["tar", "-xzf", filename], check=True)
+       
+       # Make ipfs executable (should already be, but just in case)
+       subprocess.run(["chmod", "+x", "kubo/ipfs"], check=True)
+       
+       # Move to /usr/local/bin (requires sudo)
+       subprocess.run(["sudo", "cp", "kubo/ipfs", "/usr/local/bin/"], check=True)
+       
+       # Clean up downloaded files
+       subprocess.run(["rm", "-rf", filename, "kubo"], check=True)
+       
+       click.secho("IPFS CLI installed successfully", fg="green")
+       return True
+   except subprocess.CalledProcessError as e:
+       click.secho(f"Error during installation: {e}", fg="red")
+       sys.exit(1)
+
+
+
 def kompose_install():
     '''Installs kompose on the user's path'''
 
@@ -162,17 +208,20 @@ def check_required_tools():
     """Check if helm and kompose are installed and available in PATH."""
     helm_installed = shutil.which("helm") is not None
     kompose_installed = shutil.which("kompose") is not None
+    ipfs_client_installed = shutil.which("ipfs") is not None
     
-    click.echo("Checking if the required tools are installed on your platform:")
-    click.echo(f"Helm: {'✅ installed' if helm_installed else '❌ not found'}")
-    click.echo(f"Kompose: {'✅ installed' if kompose_installed else '❌ not found'}")
+    # click.echo("Checking if the required tools are installed on your platform:")
+    # click.echo(f"Helm: {'✅ installed' if helm_installed else '❌ not found'}")
+    # click.echo(f"Kompose: {'✅ installed' if kompose_installed else '❌ not found'}")
+    # click.echo(f"Ipfs Client: {'✅ installed' if ipfs_client_installed else '❌ not found'}")
 
-    if helm_installed and kompose_installed:
+    if helm_installed and kompose_installed and ipfs_client_installed:
         return True
     else:
         if click.confirm("\nHelm and Kompose are needed in order to use all of the OASEES SDK features. Would you like to install them now?"):
             helm_install()
             kompose_install()
+            ipfs_client_install()
             return True
         else:
             return False
@@ -462,3 +511,413 @@ def mlops_add_node():
     except subprocess.CalledProcessError as e:
         click.secho(f"Error during the deployment of the training components.", fg="red")
         sys.exit(1)
+
+
+def get_ipfs_api():
+    """Get IPFS service IP from Kubernetes"""
+    try:
+        ipfs_svc = subprocess.run(['kubectl','get','svc','oasees-ipfs','-o','jsonpath={.spec.clusterIP}'], 
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+        ipfs_ip = ipfs_svc.stdout.strip()
+        return f"/ip4/{ipfs_ip}/tcp/5001/http"
+    except subprocess.CalledProcessError as e:
+        click.secho(f"Error getting IPFS service: {e.stderr}", fg="red", err=True)
+        return None
+
+def test_ipfs_connection(api_endpoint, quiet=False):
+    """Test connection to IPFS node"""
+    test_cmd = subprocess.run(['ipfs', f'--api={api_endpoint}', 'id'],  
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    
+    if test_cmd.returncode != 0:
+        click.secho(f"Cannot connect to IPFS node: {test_cmd.stderr}", fg="red", err=True)
+        return False
+    
+    if not quiet:
+        click.secho("Connected to IPFS node", fg="green")
+    return True
+
+def ensure_oasees_ml_ops_folder(api_endpoint, quiet=False):
+    """Ensure /oasees-ml-ops folder exists in MFS"""
+    # Check if folder exists
+    stat_cmd = ['ipfs', f'--api={api_endpoint}', 'files', 'stat', '/oasees-ml-ops']
+    stat_result = subprocess.run(stat_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    
+    if stat_result.returncode != 0:
+        # Folder doesn't exist, create it
+        # if not quiet:
+            # click.echo("Creating /oasees-ml-ops folder...")
+        
+        mkdir_cmd = ['ipfs', f'--api={api_endpoint}', 'files', 'mkdir', '/oasees-ml-ops']
+        mkdir_result = subprocess.run(mkdir_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        
+        if mkdir_result.returncode != 0:
+            # click.secho(f"Failed to create /oasees-ml-ops folder: {mkdir_result.stderr}", fg="red", err=True)
+            return False
+        
+        # if not quiet:
+        #     click.secho("Created /oasees-ml-ops folder", fg="green")
+    
+    return True
+
+def normalize_mfs_path(path):
+    """Convert relative path to absolute path under /oasees-ml-ops"""
+    if path.startswith('/'):
+        return path
+    else:
+        # Remove leading ./ if present
+        if path.startswith('./'):
+            path = path[2:]
+        return f"/oasees-ml-ops/{path}"
+
+@cli.command()
+@click.argument('path', default='')
+@click.option('--long', '-l', is_flag=True, help='Long format listing')
+@click.option('--quiet', '-q', is_flag=True, help='Minimal output')
+def ipfs_ls(path, long, quiet):
+    '''List files in IPFS MFS (defaults to /oasees-ml-ops)'''
+    
+    try:
+        api_endpoint = get_ipfs_api()
+        if not api_endpoint:
+            return
+        
+        if not test_ipfs_connection(api_endpoint, quiet):
+            return
+        
+        if not ensure_oasees_ml_ops_folder(api_endpoint, quiet):
+            return
+        
+        # Normalize path
+        if not path:
+            mfs_path = '/oasees-ml-ops'
+        else:
+            mfs_path = normalize_mfs_path(path)
+        
+        # Build ls command
+        ls_cmd = ['ipfs', f'--api={api_endpoint}', 'files', 'ls']
+        
+        if long:
+            ls_cmd.append('-l')
+        
+        ls_cmd.append(mfs_path)
+        
+        if not quiet:
+            click.echo(f"Listing: {mfs_path}")
+        
+        # Execute ls
+        result = subprocess.run(ls_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        
+        if result.returncode == 0:
+            if result.stdout.strip():
+                click.echo(result.stdout.strip())
+            else:
+                if not quiet:
+                    click.echo("Directory is empty")
+        else:
+            click.secho(f"List failed: {result.stderr}", fg="red", err=True)
+            
+    except Exception as e:
+        click.secho(f"Unexpected error: {str(e)}", fg="red", err=True)
+
+@cli.command()
+@click.argument('source')
+@click.argument('dest')
+@click.option('--quiet', '-q', is_flag=True, help='Minimal output')
+def ipfs_cp(source, dest, quiet):
+    '''Copy files in IPFS MFS (paths relative to /oasees-ml-ops)'''
+    
+    try:
+        api_endpoint = get_ipfs_api()
+        if not api_endpoint:
+            return
+        
+        if not test_ipfs_connection(api_endpoint, quiet):
+            return
+        
+        if not ensure_oasees_ml_ops_folder(api_endpoint, quiet):
+            return
+        
+        # Normalize paths
+        source_path = normalize_mfs_path(source)
+        dest_path = normalize_mfs_path(dest)
+        
+        # Build cp command
+        cp_cmd = ['ipfs', f'--api={api_endpoint}', 'files', 'cp', source_path, dest_path]
+        
+        if not quiet:
+            click.echo(f"Copying: {source_path} -> {dest_path}")
+        
+        # Execute cp
+        result = subprocess.run(cp_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        
+        if result.returncode == 0:
+            if not quiet:
+                click.secho("Copy successful", fg="green")
+        else:
+            click.secho(f"Copy failed: {result.stderr}", fg="red", err=True)
+            
+    except Exception as e:
+        click.secho(f"Unexpected error: {str(e)}", fg="red", err=True)
+
+@cli.command()
+@click.argument('mfs_path')
+@click.option('--output', '-o', help='Custom local filename/directory (default: use MFS filename)')
+@click.option('--directory', '-d', default='.', help='Local directory to save to (default: current directory)')
+@click.option('--quiet', '-q', is_flag=True, help='Minimal output')
+def ipfs_get(mfs_path, output, directory, quiet):
+    '''Download file/folder from IPFS MFS (paths relative to /oasees-ml-ops)'''
+    
+    try:
+        api_endpoint = get_ipfs_api()
+        if not api_endpoint:
+            return
+        
+        if not test_ipfs_connection(api_endpoint, quiet):
+            return
+        
+        if not ensure_oasees_ml_ops_folder(api_endpoint, quiet):
+            return
+        
+        # Normalize MFS path
+        full_mfs_path = normalize_mfs_path(mfs_path)
+        
+        # Get the base name from MFS path
+        base_name = os.path.basename(full_mfs_path.rstrip('/'))
+        
+        # Use custom output name if provided, otherwise use the original name
+        local_name = output if output else base_name
+        
+        # Build the full local path
+        local_path = os.path.join(directory, local_name)
+        
+        if not quiet:
+            click.echo(f"Downloading: {full_mfs_path} -> {local_path}")
+        
+        # Step 1: Get the hash from MFS
+        stat_cmd = ['ipfs', f'--api={api_endpoint}', 'files', 'stat', '--hash', full_mfs_path]
+        
+        if not quiet:
+            click.echo("Getting file hash from MFS...")
+        
+        stat_result = subprocess.run(stat_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        
+        if stat_result.returncode != 0:
+            click.secho(f"Failed to get file hash: {stat_result.stderr}", fg="red", err=True)
+            return
+        
+        file_hash = stat_result.stdout.strip()
+        
+        if not quiet:
+            click.echo(f"File hash: {file_hash}")
+            click.echo("Downloading from IPFS...")
+        
+        # Step 2: Download using ipfs get
+        get_cmd = ['ipfs', f'--api={api_endpoint}', 'get', file_hash, '-o', local_path]
+        
+        get_result = subprocess.run(get_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        
+        if get_result.returncode == 0:
+            if not quiet:
+                click.secho("Download successful", fg="green")
+                click.echo(f"Local path: {local_path}")
+                click.echo(f"IPFS Hash: {file_hash}")
+                
+                # Show file/directory info
+                if os.path.isdir(local_path):
+                    click.echo("Downloaded as directory")
+                elif os.path.isfile(local_path):
+                    file_size = os.path.getsize(local_path)
+                    click.echo(f"Downloaded file ({file_size} bytes)")
+            else:
+                click.echo(local_path)
+        else:
+            click.secho(f"Download failed: {get_result.stderr}", fg="red", err=True)
+            
+    except Exception as e:
+        click.secho(f"Unexpected error: {str(e)}", fg="red", err=True)
+
+@cli.command()
+@click.argument('path')
+@click.option('--parents', '-p', is_flag=True, help='Create parent directories')
+@click.option('--quiet', '-q', is_flag=True, help='Minimal output')
+def ipfs_mkdir(path, parents, quiet):
+    '''Create directory in IPFS MFS (paths relative to /oasees-ml-ops)'''
+    
+    try:
+        api_endpoint = get_ipfs_api()
+        if not api_endpoint:
+            return
+        
+        if not test_ipfs_connection(api_endpoint, quiet):
+            return
+        
+        if not ensure_oasees_ml_ops_folder(api_endpoint, quiet):
+            return
+        
+        # Normalize path
+        full_path = normalize_mfs_path(path)
+        
+        # Build mkdir command
+        mkdir_cmd = ['ipfs', f'--api={api_endpoint}', 'files', 'mkdir']
+        
+        if parents:
+            mkdir_cmd.append('-p')
+        
+        mkdir_cmd.append(full_path)
+        
+        if not quiet:
+            click.echo(f"Creating directory: {full_path}")
+        
+        # Execute mkdir
+        result = subprocess.run(mkdir_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        
+        if result.returncode == 0:
+            if not quiet:
+                click.secho("Directory created", fg="green")
+        else:
+            click.secho(f"Create directory failed: {result.stderr}", fg="red", err=True)
+            
+    except Exception as e:
+        click.secho(f"Unexpected error: {str(e)}", fg="red", err=True)
+
+@cli.command()
+@click.argument('path')
+@click.option('--hash', is_flag=True, help='Show only hash')
+@click.option('--size', is_flag=True, help='Show only size')
+@click.option('--quiet', '-q', is_flag=True, help='Minimal output')
+def ipfs_stat(path, hash, size, quiet):
+    '''Get file/directory stats from IPFS MFS (paths relative to /oasees-ml-ops)'''
+    
+    try:
+        api_endpoint = get_ipfs_api()
+        if not api_endpoint:
+            return
+        
+        if not test_ipfs_connection(api_endpoint, quiet):
+            return
+        
+        if not ensure_oasees_ml_ops_folder(api_endpoint, quiet):
+            return
+        
+        # Normalize path
+        full_path = normalize_mfs_path(path)
+        
+        # Build stat command
+        stat_cmd = ['ipfs', f'--api={api_endpoint}', 'files', 'stat']
+        
+        if hash:
+            stat_cmd.append('--hash')
+        elif size:
+            stat_cmd.append('--size')
+        
+        stat_cmd.append(full_path)
+        
+        if not quiet and not (hash or size):
+            click.echo(f"Stats for: {full_path}")
+        
+        # Execute stat
+        result = subprocess.run(stat_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        
+        if result.returncode == 0:
+            click.echo(result.stdout.strip())
+        else:
+            click.secho(f"Stat failed: {result.stderr}", fg="red", err=True)
+            
+    except Exception as e:
+        click.secho(f"Unexpected error: {str(e)}", fg="red", err=True)
+
+@cli.command()
+@click.argument('local_path', type=click.Path(exists=True))
+@click.option('--name', help='Custom name in MFS (default: use original filename)')
+@click.option('--path', help='Custom MFS path (default: root of /oasees-ml-ops)')
+@click.option('--recursive', '-r', is_flag=True, help='Upload directory recursively')
+@click.option('--quiet', '-q', is_flag=True, help='Minimal output')
+def ipfs_add(local_path, name, path, recursive, quiet):
+    '''Upload local file/directory to IPFS MFS (/oasees-ml-ops)'''
+    
+    try:
+        api_endpoint = get_ipfs_api()
+        if not api_endpoint:
+            return
+        
+        if not test_ipfs_connection(api_endpoint, quiet):
+            return
+        
+        if not ensure_oasees_ml_ops_folder(api_endpoint, quiet):
+            return
+        
+        # Get the base name of the file/directory
+        base_name = os.path.basename(local_path.rstrip('/'))
+        
+        # Use custom name if provided, otherwise use the original name
+        target_name = name if name else base_name
+        
+        # Build the MFS path
+        if path:
+            mfs_path = normalize_mfs_path(f"{path.rstrip('/')}/{target_name}")
+        else:
+            mfs_path = f"/oasees-ml-ops/{target_name}"
+        
+        if not quiet:
+            if os.path.isdir(local_path):
+                click.echo(f"Uploading directory: {base_name} -> {mfs_path}")
+            else:
+                click.echo(f"Uploading file: {base_name} -> {mfs_path}")
+        
+        # Step 1: Add to IPFS and get hash
+        add_cmd = ['ipfs', f'--api={api_endpoint}', 'add', '-q']
+        
+        # Auto-detect if it's a directory or use explicit recursive flag
+        if recursive or os.path.isdir(local_path):
+            add_cmd.append('-r')
+            if not quiet:
+                click.echo("Uploading recursively...")
+        
+        add_cmd.append(local_path)
+        
+        if not quiet:
+            click.echo("Adding to IPFS...")
+        
+        # Execute add command
+        add_result = subprocess.run(add_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        
+        if add_result.returncode != 0:
+            click.secho(f"IPFS add failed: {add_result.stderr}", fg="red", err=True)
+            return
+        
+        # Get the hash
+        hash_lines = add_result.stdout.strip().split('\n')
+        if not hash_lines or not hash_lines[-1].strip():
+            click.secho("No hash returned from IPFS add", fg="red", err=True)
+            return
+            
+        file_hash = hash_lines[-1].strip()
+        
+        if not quiet:
+            click.echo(f"Added to IPFS with hash: {file_hash}")
+            click.echo("Copying to MFS...")
+        
+        # Step 2: Copy from IPFS to MFS using the hash
+        cp_cmd = ['ipfs', f'--api={api_endpoint}', 'files', 'cp', f'/ipfs/{file_hash}', mfs_path]
+        
+        cp_result = subprocess.run(cp_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        
+        if cp_result.returncode == 0:
+            if not quiet:
+                click.secho("Successfully uploaded to MFS", fg="green")
+                click.echo(f"IPFS Hash: {file_hash}")
+                click.echo(f"MFS Path: {mfs_path}")
+                
+                # Show gateway URL
+                ipfs_ip = api_endpoint.split('/')[2]
+                # click.echo(f"Gateway URL: http://{ipfs_ip}:8080/ipfs/{file_hash}")
+            else:
+                click.echo(file_hash)
+        else:
+            click.secho(f"Failed to copy to MFS: {cp_result.stderr}", fg="red", err=True)
+            if not quiet:
+                click.echo(f"File is available in IPFS with hash: {file_hash}")
+            
+    except Exception as e:
+        click.secho(f"Unexpected error: {str(e)}", fg="red", err=True)
