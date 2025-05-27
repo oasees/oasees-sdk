@@ -105,7 +105,11 @@ def ipfs_client_install():
        subprocess.run(["chmod", "+x", "kubo/ipfs"], check=True)
        
        # Move to /usr/local/bin (requires sudo)
-       subprocess.run(["sudo", "cp", "kubo/ipfs", "/usr/local/bin/"], check=True)
+       try:
+            subprocess.run(["sudo", "cp", "kubo/ipfs", "/usr/local/bin/"], check=True)
+       except:
+            subprocess.run(["cp", "kubo/ipfs", "/usr/local/bin/"], check=True)
+
        
        # Clean up downloaded files
        subprocess.run(["rm", "-rf", filename, "kubo"], check=True)
@@ -144,8 +148,12 @@ def kompose_install():
         subprocess.run(["chmod", "+x", "kompose"], check=True)
         
         # Move to /usr/local/bin (requires sudo)
-        subprocess.run(["sudo", "mv", "kompose", "/usr/local/bin/"], check=True)
-        
+        try:
+            subprocess.run(["sudo", "mv", "kompose", "/usr/local/bin/"], check=True)
+        except:
+            subprocess.run(["mv", "kompose", "/usr/local/bin/"], check=True)
+
+
         click.secho("Kompose installed successfully", fg="green")
         return True
     except subprocess.CalledProcessError as e:
