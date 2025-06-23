@@ -349,9 +349,9 @@ def process_yaml_files(output_dir):
                         continue
                     
                     resource_map = {
-                        'sound': {'smarter-devices/snd': 1},
-                        'video': {'smarter-devices/video0': 1},
-                        'bluetooth': {'smarter-devices/hci0': 1}
+                        'sound': {'oasees.dev/snd': 1},
+                        'video': {'oasees.dev/video0': 1},
+                        'bluetooth': {'oasees.dev/hci0': 1}
                     }
                     
                     if sensor_value in resource_map:

@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "oasees_sdk"
-version = "0.5.4"
+version = "0.5.5"
 description = "Oasees SDK"
 authors = [
     "Achilleas Economopoulos",
@@ -21,14 +21,10 @@ classifiers = [
 [tool.poetry.dependencies]
 Click="*"
 web3="6.19.0"
-ipfshttpclient="0.8.0a2"
 requests="*"
 python-dotenv="*"
 kubernetes="*"
 requests_toolbelt="*"
-soorgeon="*"
-ploomber="*"
-pipreqs="*"
 jupytext="*"
 ipylab="*"
 
