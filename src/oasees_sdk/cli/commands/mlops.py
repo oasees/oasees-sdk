@@ -149,17 +149,9 @@ spec:
       HASH=$(ipfs --api=/ip4/${{IPFS_IP}}/tcp/5001/http files stat --hash /oasees-ml-ops/projects/ml/${{PROJECT_NAME}}) &&
       ipfs --api=/ip4/${{IPFS_IP}}/tcp/5001/http get ${{HASH}} -o ${{PROJECT_NAME}} &&
       cd $PROJECT_NAME &&
-      python /pex/oasees-env310.pex ${{PROJECT_NAME}}_deploy.py --model-path $MODEL
+      python  ${{PROJECT_NAME}}_deploy.py --model-path $MODEL
     ports:
     - containerPort: 5005
-    volumeMounts:
-    - name: pex-files
-      mountPath: /pex/oasees-env310.pex
-  volumes:
-  - name: pex-files
-    hostPath:
-      path: /var/tmp/oasees-env310.pex
-      type: File
 
 ---
 apiVersion: v1
@@ -391,7 +383,7 @@ spec:
     - |
       HASH=$(ipfs --api=/ip4/${{IPFS_IP}}/tcp/5001/http files stat --hash /oasees-ml-ops/projects/ml/${{PROJECT_NAME}}) &&
       ipfs --api=/ip4/${{IPFS_IP}}/tcp/5001/http get ${{HASH}} -o ${{PROJECT_NAME}} &&
-      python /pex/oasees-env310.pex ${{PROJECT_NAME}}/fl_server.py \\
+      python ${{PROJECT_NAME}}/fl_server.py \\
         --NUM_ROUNDS ${{NUM_ROUNDS}} \\
         --MODEL_NAME ${{PROJECT_NAME}} \\
         --MIN_CLIENTS ${{MIN_CLIENTS}} &&
@@ -399,16 +391,9 @@ spec:
       HASH=$(ipfs --api=/ip4/$IPFS_IP/tcp/5001/http add $PROJECT_NAME.pkl -q) &&
       echo ${{HASH}} &&
       ipfs --api=/ip4/${{IPFS_IP}}/tcp/5001/http files cp  /ipfs/${{HASH}} /oasees-ml-ops/projects/ml/${{PROJECT_NAME}}/${{PROJECT_NAME}}_${{TIMESTAMP}}.pkl 
-    volumeMounts:
-    - name: pex-files
-      mountPath: /pex/oasees-env310.pex
     ports:
     - containerPort: 9999
-  volumes:
-  - name: pex-files
-    hostPath:
-      path: /var/tmp/oasees-env310.pex
-      type: File
+
 ---
 # FL Server Service
 apiVersion: v1
@@ -478,24 +463,18 @@ spec:
       HASH=$(ipfs --api=/ip4/${{IPFS_IP}}/tcp/5001/http files stat --hash /oasees-ml-ops/projects/ml/${{PROJECT_NAME}}) &&
       ipfs --api=/ip4/${{IPFS_IP}}/tcp/5001/http get ${{HASH}} -o ${{PROJECT_NAME}} &&
       sleep 1 &&
-      python /pex/oasees-env310.pex $PROJECT_NAME/${{PROJECT_NAME}}_client.py \\
+      python $PROJECT_NAME/${{PROJECT_NAME}}_client.py \\
         --SERVER_ADDRESS $SERVER_ADDRESS \\
         --DATA_PATH $DATA_PATH \\
         --TARGET_PATH $TARGET_PATH \\
         --EPOCHS $EPOCHS --CLIENT_ID $CLIENT_ID
 
     volumeMounts:
-    - name: pex-files
-      mountPath: /pex/oasees-env310.pex
     - name: data-files
       mountPath: {data_path}
     - name: target-files
       mountPath: {target_path}
   volumes:
-  - name: pex-files
-    hostPath:
-      path: /var/tmp/oasees-env310.pex
-      type: File
   - name: data-files
     hostPath:
       path: {data_path}

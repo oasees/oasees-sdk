@@ -190,7 +190,6 @@ class ServerStrategy(fl.server.strategy.FedAvg):
         with open(self.model_save_path, 'wb') as f:
             pickle.dump(model_data, f,protocol=pickle.HIGHEST_PROTOCOL)
         
-        print(f"Model saved to {self.model_save_path}")
 
 strategy = ServerStrategy(
     model_save_path='{}.pkl'.format(MODEL_NAME),
