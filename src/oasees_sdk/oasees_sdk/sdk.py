@@ -8,6 +8,22 @@ from .mlops.util_files import *
 from ipylab import JupyterFrontEnd
 import re
 import ast
+import time
+
+
+def wait_for_file(file_path, timeout=30, check_interval=0.5):
+    """Wait for a file to be created, with timeout."""
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        if file_path.exists():
+            # Additional check to ensure file is not empty and fully written
+            try:
+                if file_path.stat().st_size > 0:
+                    return True
+            except OSError:
+                pass
+        time.sleep(check_interval)
+    return False
 
 
 def extract_and_reconstruct_magic_code(content):
@@ -25,7 +41,7 @@ def extract_and_reconstruct_magic_code(content):
         
         # Check if this line starts a magic call
         if 'get_ipython().run_cell_magic(' in line:
-            print(f"Found magic call starting at line {i}: {line[:50]}...")
+            # print(f"Found magic call starting at line {i}: {line[:50]}...")
             
             # Find the complete magic call (might span multiple lines)
             magic_call = line
@@ -48,7 +64,7 @@ def extract_and_reconstruct_magic_code(content):
                 
                 if match:
                     code_str = match.group(1).strip()
-                    print(f"Extracted code string: {code_str[:50]}...")
+                    # print(f"Extracted code string: {code_str[:50]}...")
                     
                     # Parse the string literal
                     try:
@@ -56,7 +72,7 @@ def extract_and_reconstruct_magic_code(content):
                         print("Successfully extracted code!")
                         result_lines.append(actual_code)
                     except:
-                        print("ast.literal_eval failed, trying manual parsing...")
+                        # print("ast.literal_eval failed, trying manual parsing...")
                         # Manual parsing
                         if code_str.startswith('"') and code_str.endswith('"'):
                             actual_code = code_str[1:-1]
@@ -110,7 +126,7 @@ def ipfs_add():
     res = subprocess.run(cp_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
 
-def convert():
+def convert(deploy=False):
     import subprocess
     import re
     from pathlib import Path
@@ -122,7 +138,13 @@ def convert():
         print("Warning: Could not save notebook automatically")
 
     _name = Path.cwd().name
-    convert_files = ["{}_client.ipynb".format(_name), "{}_deploy.ipynb".format(_name)]
+
+    if deploy:
+        convert_files = ["{}_deploy.ipynb".format(_name)]
+    else:
+        convert_files = ["{}_client.ipynb".format(_name)]
+
+    # convert_files = ["{}_client.ipynb".format(_name), "{}_deploy.ipynb".format(_name)]
 
     for cf in convert_files:
         notebook_path = Path(cf)
@@ -130,7 +152,7 @@ def convert():
             print(f"Warning: {cf} not found, skipping...")
             continue
             
-        print(f"Converting {cf}")
+        # print(f"Converting {cf}")
         
         nbconvert_cmd = [
             "jupyter", "nbconvert", cf, "--to", "script",
@@ -146,7 +168,11 @@ def convert():
 
         py_file = cf.replace('.ipynb', '.py')
         py_path = Path(py_file)
-        
+
+        if not wait_for_file(py_path, timeout=30):
+            continue
+
+
         if py_path.exists():
             with open(py_path, 'r', encoding='utf-8') as f:
                 content = f.read()
@@ -167,6 +193,8 @@ def convert():
             
             with open(py_path, 'w', encoding='utf-8') as f:
                 f.write(content)
+
+
 
     ipfs_add()
 

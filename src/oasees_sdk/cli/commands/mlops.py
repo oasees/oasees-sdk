@@ -299,6 +299,36 @@ def get_ipfs_api():
 def start_fl(project_name, data_files, min_clients, num_rounds, epochs):
     """Start Federated Learning system with server and clients"""
     
+    def wait_for_pod_ready(pod_name, timeout=300, check_interval=5):
+        """Wait for a pod to be ready"""
+        import time
+        start_time = time.time()
+        click.echo(f"Waiting for {pod_name} to be ready...")
+        
+        while time.time() - start_time < timeout:
+            try:
+                result = subprocess.run(['kubectl', 'get', 'pod', pod_name, '-o', 'jsonpath={.status.phase}'], 
+                                      capture_output=True, text=True, check=True)
+                if result.stdout.strip() == 'Running':
+                    # Additional check to ensure container is ready
+                    result = subprocess.run(['kubectl', 'get', 'pod', pod_name, '-o', 'jsonpath={.status.containerStatuses[0].ready}'], 
+                                          capture_output=True, text=True, check=True)
+                    if result.stdout.strip() == 'true':
+                        click.secho(f"✅ {pod_name} is ready!", fg="green")
+                        return True
+                elif result.stdout.strip() == 'Failed':
+                    click.secho(f"❌ {pod_name} failed to start!", fg="red")
+                    return False
+                
+                click.echo(f"Pod status: {result.stdout.strip()}, waiting...")
+                time.sleep(check_interval)
+            except subprocess.CalledProcessError:
+                click.echo(f"Pod {pod_name} not found yet, waiting...")
+                time.sleep(check_interval)
+        
+        click.secho(f"❌ Timeout waiting for {pod_name} to be ready", fg="red")
+        return False
+    
     # Get IPFS IP
     ipfs_api = get_ipfs_api()
     if not ipfs_api:
@@ -351,8 +381,8 @@ def start_fl(project_name, data_files, min_clients, num_rounds, epochs):
         click.echo(f"  Client {i}: {data} -> {target} (Node: {node})")
     click.echo()
     
-    # Create YAML content
-    yaml_content = f"""# FL Server Pod (always on master node)
+    # Create Server YAML content
+    server_yaml_content = f"""# FL Server Pod (always on master node)
 apiVersion: v1
 kind: Pod
 metadata:
@@ -414,13 +444,14 @@ spec:
     targetPort: 9999
 """
 
-    # Add client pods
+    # Create Clients YAML content
+    clients_yaml_content = ""
     for i, (data_file, target_file, node_name) in enumerate(zip(data_array, target_array, node_array)):
         client_pod_name = f"fl-client-{project_name}-{i}-{timestamp}"
         data_path = f"/var/tmp/{data_file}"
         target_path = f"/var/tmp/{target_file}"
         
-        yaml_content += f"""---
+        clients_yaml_content += f"""---
 # FL Client Pod {i} (on {node_name} node)
 apiVersion: v1
 kind: Pod
@@ -485,14 +516,33 @@ spec:
       type: File
 """
 
-    # Apply to Kubernetes
+    server_temp_file_path = None
+    clients_temp_file_path = None
+    
     try:
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as temp_file:
-            temp_file.write(yaml_content)
-            temp_file_path = temp_file.name
+        # Step 1: Deploy Server and Service
+        click.echo("\n🚀 Step 1: Deploying FL Server...")
+        with tempfile.NamedTemporaryFile(mode='w', suffix='_server.yaml', delete=False) as temp_file:
+            temp_file.write(server_yaml_content)
+            server_temp_file_path = temp_file.name
         
-        click.echo("Applying Kubernetes configuration...")
-        result = subprocess.run(['kubectl', 'apply', '-f', temp_file_path], 
+        result = subprocess.run(['kubectl', 'apply', '-f', server_temp_file_path], 
+                              capture_output=True, text=True, check=True)
+        click.secho("✅ Server deployment initiated!", fg="green")
+        
+        # Step 2: Wait for Server to be ready
+        click.echo("\n⏳ Step 2: Waiting for FL Server to be ready...")
+        if not wait_for_pod_ready(server_pod_name, timeout=300):
+            click.secho("❌ Server failed to start. Aborting client deployment.", fg="red")
+            return
+        
+        # Step 3: Deploy Clients
+        click.echo("\n🚀 Step 3: Deploying FL Clients...")
+        with tempfile.NamedTemporaryFile(mode='w', suffix='_clients.yaml', delete=False) as temp_file:
+            temp_file.write(clients_yaml_content)
+            clients_temp_file_path = temp_file.name
+        
+        result = subprocess.run(['kubectl', 'apply', '-f', clients_temp_file_path], 
                               capture_output=True, text=True, check=True)
         
         click.secho("\n✅ Deployment successful!", fg="green")
@@ -522,9 +572,11 @@ spec:
         click.secho(f"\n❌ Deployment failed!", fg="red")
         click.secho(f"Error: {e.stderr}", fg="red")
     finally:
-        # Clean up temporary file
-        if os.path.exists(temp_file_path):
-            os.unlink(temp_file_path)
+        # Clean up temporary files
+        if server_temp_file_path and os.path.exists(server_temp_file_path):
+            os.unlink(server_temp_file_path)
+        if clients_temp_file_path and os.path.exists(clients_temp_file_path):
+            os.unlink(clients_temp_file_path)
 
 
 
@@ -997,6 +1049,7 @@ def init_project(name):
         import warnings
         import logging
         import os
+        import torch
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
         os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  
         logging.getLogger("flwr").setLevel(logging.ERROR)
@@ -1008,10 +1061,6 @@ def init_project(name):
         markdown_cell("## IMPORTS"),
 
         code_cell("""
-
-        from sklearn.ensemble import RandomForestClassifier
-        from sklearn.metrics import log_loss
-
 
         """, editable=True,tags=[]),
 
@@ -1053,8 +1102,6 @@ def init_project(name):
         def model_definition():
             model = None
             ################USER INPUT############################
-            model = RandomForestClassifier() 
-
 
 
             ######################################################
@@ -1099,6 +1146,22 @@ def init_project(name):
                 self.y_test = y_test
                 self.client_id = client_id
                 self.epochs = epochs
+             
+            def set_parameters(self, parameters):
+                if hasattr(self.model, 'get_weights'):
+                    weights = self.model.get_weights()
+                    for i, param in enumerate(parameters):
+                        weights[i].assign(param)
+                
+                elif hasattr(self.model, 'state_dict'):
+                    state_dict = self.model.state_dict()
+                    param_keys = list(state_dict.keys())
+                    for i, param in enumerate(parameters):
+                        if i < len(param_keys):
+                            state_dict[param_keys[i]] = torch.tensor(param)
+                    self.model.load_state_dict(state_dict)
+                else:
+                    pass
 
             def get_parameters(self, config):
                 params = None
@@ -1115,15 +1178,9 @@ def init_project(name):
 
             def fit(self, parameters, config):
                 train_metrics = None
+                self.set_parameters(parameters)
                 ################USER INPUT############################
-                self.model.fit(self.X_train, self.y_train)
-                accuracy = self.model.score(self.X_train, self.y_train)
-                loss = log_loss(self.y_train, self.model.predict_proba(self.X_train))
-                
-                train_metrics = {
-                    "train_accuracy": accuracy,
-                    "train_loss": loss
-                }
+
                   
 
 
@@ -1138,10 +1195,8 @@ def init_project(name):
 
             def evaluate(self, parameters, config):
                 eval_metrics = None
+                self.set_parameters(parameters)
                 ################USER INPUT############################
-
-                accuracy = self.model.score(self.X_test, self.y_test)
-                loss = log_loss(self.y_test, self.model.predict_proba(self.X_test))  
 
 
                 ######################################################
@@ -1334,7 +1389,7 @@ def init_project(name):
 
 
         code_cell("""
-        oasees_sdk.convert()
+        oasees_sdk.convert(deploy=True)
         """,readonly=True,tags=["skip-execution"]),
 
 
@@ -1510,8 +1565,23 @@ def init_example_pytorch(name):
                         params = [np.array([1.0])] 
                 return params
 
+
+            def get_parameters(self, config):
+                params = None
+                if hasattr(self.model, 'get_weights'):
+                    params = self.model.get_weights()
+                elif hasattr(self.model, 'state_dict'):
+                    params = [p.detach().cpu().numpy() for p in self.model.state_dict().values()]
+                else:
+                    if hasattr(self.model, 'estimators_'):
+                        params = [np.array([len(self.model.estimators_)])]
+                    else:
+                        params = [np.array([1.0])] 
+                return params
+
             def fit(self, parameters, config):
                 train_metrics = None
+                self.set_parameters(parameters)
                 ################USER INPUT############################
                 X_tensor = torch.FloatTensor(self.X_train)
                 y_tensor = torch.LongTensor(self.y_train)
@@ -1554,6 +1624,7 @@ def init_example_pytorch(name):
 
             def evaluate(self, parameters, config):
                 eval_metrics = None
+                self.set_parameters(parameters)
                 ################USER INPUT############################
 
                 X_test_tensor = torch.FloatTensor(self.X_test)
@@ -1768,8 +1839,8 @@ def init_example_pytorch(name):
                   
         data = np.load('')[0]
         response = requests.post('http://localhost:5005/predict', 
-                        json={'data': single_sample.tolist()})
-        print(response.json())          
+                        json={'data': data.tolist()})
+        print(response.json())           
         """,readonly=False,tags=["skip-execution"]),
 
 
@@ -1783,7 +1854,7 @@ def init_example_pytorch(name):
 
 
         code_cell("""
-        oasees_sdk.convert()
+        oasees_sdk.convert(deploy=True)
         """,readonly=True,tags=["skip-execution"]),
 
 
@@ -1833,6 +1904,7 @@ def init_example_tensorflow(name):
         import numpy as np
         import warnings
         import logging
+        import torch
         logging.getLogger("flwr").setLevel(logging.ERROR)
         warnings.filterwarnings("ignore", category=UserWarning, module="flwr")
         """, readonly=True,tags=["readonly"]),
@@ -1949,6 +2021,22 @@ def init_example_tensorflow(name):
                 self.client_id = client_id
                 self.epochs = epochs
 
+            def set_parameters(self, parameters):
+                if hasattr(self.model, 'get_weights'):
+                    weights = self.model.get_weights()
+                    for i, param in enumerate(parameters):
+                        weights[i].assign(param)
+                
+                elif hasattr(self.model, 'state_dict'):
+                    state_dict = self.model.state_dict()
+                    param_keys = list(state_dict.keys())
+                    for i, param in enumerate(parameters):
+                        if i < len(param_keys):
+                            state_dict[param_keys[i]] = torch.tensor(param)
+                    self.model.load_state_dict(state_dict)
+                else:
+                    pass                  
+
             def get_parameters(self, config):
                 params = None
                 if hasattr(self.model, 'get_weights'):
@@ -1964,6 +2052,7 @@ def init_example_tensorflow(name):
 
             def fit(self, parameters, config):
                 train_metrics = None
+                self.set_parameters(parameters)
                 ################USER INPUT############################
                 optimizer = tf.optimizers.Adam(0.001)
                 
@@ -1993,6 +2082,7 @@ def init_example_tensorflow(name):
 
             def evaluate(self, parameters, config):
                 eval_metrics = None
+                self.set_parameters(parameters)  
                 ################USER INPUT############################
 
                 logits = self.model(tf.cast(self.X_test, tf.float32))
@@ -2224,7 +2314,7 @@ def init_example_tensorflow(name):
 
 
         code_cell("""
-        oasees_sdk.convert()
+        oasees_sdk.convert(deploy=True)
         """,readonly=True,tags=["skip-execution"]),
 
 
