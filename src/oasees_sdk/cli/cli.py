@@ -5,6 +5,7 @@ import click
 import getpass
 import json
 import requests
+import socket
 # import web3
 import socket
 import os
@@ -20,6 +21,22 @@ import re
 from .commands.mlops import mlops_commands
 from .commands.telemetry import telemetry_commands
 from .commands.display_banner import display_banner
+
+
+def get_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.settimeout(0)
+    try:
+        # doesn't even have to be reachable
+        s.connect(('10.254.254.254', 1))
+        IP = s.getsockname()[0]
+    except Exception:
+        IP = '127.0.0.1'
+    finally:
+        s.close()
+    return IP
+
+
 
 
 
@@ -208,9 +225,10 @@ def get_nodes():
         click.echo("Error: No connection to cluster found.")
 
 @cli.command()
-@click.option('--expose-ip', required=False, help="Expose a node's IP if you plan accessing the stack remotely.")
+# @click.option('--expose-ip', required=False, help="Expose a node's IP if you plan accessing the stack remotely.")
 @click.option('--update', required=False, is_flag=True, help="Use this to skip cluster initialization.")
-def init(expose_ip,update):
+# def init(expose_ip,update):
+def init(update):    
     '''Sets up the OASEES cluster.'''
 
     if(check_required_tools()):
@@ -224,6 +242,10 @@ def init(expose_ip,update):
             except subprocess.CalledProcessError as e:
                 return e.stderr
         
+
+        expose_ip = get_ip()
+
+
         try:
             helm_add_oasees_repo()
             click.echo('\n')
