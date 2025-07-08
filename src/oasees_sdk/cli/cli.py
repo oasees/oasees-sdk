@@ -176,9 +176,12 @@ def helm_add_oasees_repo():
     run_helm_command(update_cmd)
 
 
-def helm_install_oasees_user(expose_ip):
+def helm_install_oasees(expose_ip):
     cmd = ["upgrade", "--install", "oasees-user", "oasees-charts/oasees-user", "--create-namespace", "--set", f"exposedIP={expose_ip}"]
     run_helm_command(cmd)
+    cmd = ["upgrade", "--install", "oasees-telemetry", "oasees-charts/oasees-telemetry", "--create-namespace"]
+    run_helm_command(cmd)
+
 
 
 def run_helm_command(cmd:list):
@@ -225,10 +228,10 @@ def get_nodes():
         click.echo("Error: No connection to cluster found.")
 
 @cli.command()
-# @click.option('--expose-ip', required=False, help="Expose a node's IP if you plan accessing the stack remotely.")
+@click.option('--expose-ip', required=False, help="Expose a node's IP if you plan accessing the stack remotely.")
 @click.option('--update', required=False, is_flag=True, help="Use this to skip cluster initialization.")
-# def init(expose_ip,update):
-def init(update):    
+def init(expose_ip,update):
+# def init(update):    
     '''Sets up the OASEES cluster.'''
 
     if(check_required_tools()):
@@ -243,13 +246,13 @@ def init(update):
                 return e.stderr
         
 
-        expose_ip = get_ip()
+        # expose_ip = get_ip()
 
 
         try:
             helm_add_oasees_repo()
             click.echo('\n')
-            helm_install_oasees_user(expose_ip)
+            helm_install_oasees(expose_ip)
             click.echo('\n')
         except Exception as e:
             click.secho("Failed to install OASEES user chart.", fg="red")
@@ -343,6 +346,12 @@ def process_yaml_files(output_dir):
                 metadata = doc.get('metadata', {})
                 annotations = metadata.get('annotations', {})
                 
+
+                oasees_ui_label = annotations.get('oasees.ui')
+                if oasees_ui_label:
+                    metadata['labels']['oasees-ui'] = 'true'
+
+                
                 # Handle nodeSelector
                 node_selector_value = annotations.get('oasees.device')
                 if node_selector_value:
@@ -382,13 +391,49 @@ def process_yaml_files(output_dir):
                         }
                         modified = True
             
-            # Process Services
             elif kind == 'Service':
-                expose_value = doc.get('metadata', {}).get('annotations', {}).get('oasees.expose')
-                if expose_value:
+                metadata = doc.get('metadata', {})
+                annotations = doc.get('metadata', {}).get('annotations', {})
+                oasees_ui_label = annotations.get('oasees.ui')
+                if oasees_ui_label:
+                    metadata['labels']['oasees-ui'] = 'true'
+                    oasees_ui_port = annotations.get('oasees.ui.port')
+                    metadata['labels']['oasees-ui-port'] = oasees_ui_port
+                
+                expose_values = []
+                for key, value in annotations.items():
+                    if key.startswith('oasees.expose'):
+                        if isinstance(value, str):
+                            ports = [port.strip() for port in value.split() if port.strip()]
+                            expose_values.extend(ports)
+                        else:
+                            expose_values.append(str(value))
+                
+                if expose_values:
                     doc['spec']['type'] = 'NodePort'
-                    doc['spec']['ports'][0]['nodePort'] = int(expose_value)
+                    
+                    if 'ports' not in doc['spec']:
+                        doc['spec']['ports'] = []
+                    
+                    existing_ports = doc['spec']['ports']
+                    
+                    for i, expose_value in enumerate(expose_values):
+                        try:
+                            node_port = int(expose_value)
+                            
+                            if i < len(existing_ports):
+                                existing_ports[i]['nodePort'] = node_port
+                            else:
+                                print(f"Warning: More expose values ({len(expose_values)}) than existing ports ({len(existing_ports)}) for service")
+                                break
+                        
+                        except ValueError:
+                            print(f"Warning: Invalid port value '{expose_value}' in oasees.expose annotation")
+                            continue
+                    
                     modified = True
+
+
         
         if modified:
             with open(yaml_file, 'w') as f:
@@ -441,69 +486,69 @@ def delete_app(folder):
     else:
         click.secho("Some manifests failed to delete.", fg="red")
 
-@cli.command()
-def enable_gpu_operator():
-    '''Enables the GPU Operator on the cluster'''
+# @cli.command()
+# def enable_gpu_operator():
+#     '''Enables the GPU Operator on the cluster'''
 
-    click.secho("Enabling GPU Operator...", fg="yellow")
+#     click.secho("Enabling GPU Operator...", fg="yellow")
 
-    command = [
-        "helm", "install", "gpu-operator", "-n", "gpu-operator", "--create-namespace", "nvidia/gpu-operator",
-        "--version=v25.3.0",
-        "--set", "toolkit.env[0].name=CONTAINERD_CONFIG",
-        "--set", "toolkit.env[0].value=/var/lib/rancher/k3s/agent/etc/containerd/config.toml",
-        "--set", "toolkit.env[1].name=CONTAINERD_SOCKET",
-        "--set", "toolkit.env[1].value=/run/k3s/containerd/containerd.sock",
-        "--set", "toolkit.env[2].name=CONTAINERD_RUNTIME_CLASS",
-        "--set", "toolkit.env[2].value=nvidia",
-        "--set", "toolkit.env[3].name=CONTAINERD_SET_AS_DEFAULT",
-        "--set-string", "toolkit.env[3].value=true"
-    ]
+#     command = [
+#         "helm", "install", "gpu-operator", "-n", "gpu-operator", "--create-namespace", "nvidia/gpu-operator",
+#         "--version=v25.3.0",
+#         "--set", "toolkit.env[0].name=CONTAINERD_CONFIG",
+#         "--set", "toolkit.env[0].value=/var/lib/rancher/k3s/agent/etc/containerd/config.toml",
+#         "--set", "toolkit.env[1].name=CONTAINERD_SOCKET",
+#         "--set", "toolkit.env[1].value=/run/k3s/containerd/containerd.sock",
+#         "--set", "toolkit.env[2].name=CONTAINERD_RUNTIME_CLASS",
+#         "--set", "toolkit.env[2].value=nvidia",
+#         "--set", "toolkit.env[3].name=CONTAINERD_SET_AS_DEFAULT",
+#         "--set-string", "toolkit.env[3].value=true"
+#     ]
 
-    try:
-        result = subprocess.run(command, check=True, text=True)
-        click.secho("GPU Operator enabled successfully!", fg="green")
-    except subprocess.CalledProcessError as e:
-        click.secho(f"Failed to enable GPU Operator: {e}", fg="red")
-        sys.exit(1)
+#     try:
+#         result = subprocess.run(command, check=True, text=True)
+#         click.secho("GPU Operator enabled successfully!", fg="green")
+#     except subprocess.CalledProcessError as e:
+#         click.secho(f"Failed to enable GPU Operator: {e}", fg="red")
+#         sys.exit(1)
 
-@cli.command()
-def mlops_add_node():
-    '''Install the components needed to execute ML workloads on the specified node.'''
-    node_name = ''
-    mount_path = ''
-    gpu_enabled = 0
-    node_infos = json.loads(get_nodes())
-    nodes = []
+# @cli.command()
+# def mlops_add_node():
+#     '''Install the components needed to execute ML workloads on the specified node.'''
+#     node_name = ''
+#     mount_path = ''
+#     gpu_enabled = 0
+#     node_infos = json.loads(get_nodes())
+#     nodes = []
 
-    click.echo("Available nodes:")
-    for idx, node_info in enumerate(node_infos['items']):
-        name = node_info['metadata']['name']
-        gpu = any(re.match(r'nvidia.*',label) for label in node_info['metadata']['labels'])
+#     click.echo("Available nodes:")
+#     for idx, node_info in enumerate(node_infos['items']):
+#         name = node_info['metadata']['name']
+#         gpu = any(re.match(r'nvidia.*',label) for label in node_info['metadata']['labels'])
 
-        click.echo(f"{idx+1}. {name} (GPU: {'Yes' if gpu else 'No'})")
-        nodes.append({'name': name, 'gpu': gpu})
+#         click.echo(f"{idx+1}. {name} (GPU: {'Yes' if gpu else 'No'})")
+#         nodes.append({'name': name, 'gpu': gpu})
 
-    click.echo('\n')
+#     click.echo('\n')
 
-    selection = int(click.prompt("Choose the node you want to use for training", type=click.Choice([str(i+1) for i in range(len(nodes))]), show_choices=False)) - 1
-    node_name = nodes[selection]['name']
+#     selection = int(click.prompt("Choose the node you want to use for training", type=click.Choice([str(i+1) for i in range(len(nodes))]), show_choices=False)) - 1
+#     node_name = nodes[selection]['name']
 
-    if(nodes[selection]['gpu']):
-        gpu_enabled = 1 if click.confirm("Would you like to enable GPU support for this node?", default=True) else 0
+#     if(nodes[selection]['gpu']):
+#         gpu_enabled = 1 if click.confirm("Would you like to enable GPU support for this node?", default=True) else 0
 
-    click.echo()
-    click.secho(f'The current MLOPs image requires the designated node ({node_name}) to have a venv with all the required ML libraries already set up.', fg="yellow")
-    mount_path = click.prompt("Enter the path your venv is in (e.g. /home/<username>/venv)", type=str)
+#     click.echo()
+#     click.secho(f'The current MLOPs image requires the designated node ({node_name}) to have a venv with all the required ML libraries already set up.', fg="yellow")
+#     mount_path = click.prompt("Enter the path your venv is in (e.g. /home/<username>/venv)", type=str)
 
-    command = [
-        "helm", "upgrade" , "--install", f"training-worker-{node_name}", "oasees-charts/training-worker", "--set", f"nodeName={node_name}", "--set", f"mountPath={mount_path}", "--set", f"gpu={gpu_enabled}"
-    ]
+#     command = [
+#         "helm", "upgrade" , "--install", f"training-worker-{node_name}", "oasees-charts/training-worker", "--set", f"nodeName={node_name}", "--set", f"mountPath={mount_path}", "--set", f"gpu={gpu_enabled}"
+#     ]
 
-    try:
-        subprocess.run(command, check=True, text=True)
-        click.secho(f"Training components deployed successfully on {node_name}!", fg="green")
-    except subprocess.CalledProcessError as e:
-        click.secho(f"Error during the deployment of the training components.", fg="red")
-        sys.exit(1)
+#     try:
+#         subprocess.run(command, check=True, text=True)
+#         click.secho(f"Training components deployed successfully on {node_name}!", fg="green")
+#     except subprocess.CalledProcessError as e:
+#         click.secho(f"Error during the deployment of the training components.", fg="red")
+#         sys.exit(1)
 
