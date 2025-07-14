@@ -207,6 +207,7 @@ def get_ipfs_api():
         ipfs_svc = subprocess.run(['kubectl','get','svc','oasees-ipfs','-o','jsonpath={.spec.clusterIP}'], 
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
         ipfs_ip = ipfs_svc.stdout.strip()
+        print(ipfs_ip)
         return f"/ip4/{ipfs_ip}/tcp/5001/http"
     except subprocess.CalledProcessError as e:
         click.secho(f"Error getting IPFS service: {e.stderr}", fg="red", err=True)
@@ -597,7 +598,8 @@ spec:
 @click.option('--quiet', '-q', is_flag=True, help='Minimal output')
 def ipfs_ls(path, long, quiet):
     '''List files in IPFS MFS (defaults to /oasees-ml-ops)'''
-    
+
+    api_endpoint = get_ipfs_api()
     try:
         api_endpoint = get_ipfs_api()
         if not api_endpoint:
@@ -617,6 +619,7 @@ def ipfs_ls(path, long, quiet):
         
         # Build ls command
         ls_cmd = ['ipfs', f'--api={api_endpoint}', 'files', 'ls']
+
         
         if long:
             ls_cmd.append('-l')
