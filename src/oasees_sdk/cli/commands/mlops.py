@@ -1555,18 +1555,21 @@ def init_example_pytorch(name):
                 self.client_id = client_id
                 self.epochs = epochs
 
-            def get_parameters(self, config):
-                params = None
+            def set_parameters(self, parameters):
                 if hasattr(self.model, 'get_weights'):
-                    params = self.model.get_weights()
+                    weights = self.model.get_weights()
+                    for i, param in enumerate(parameters):
+                        weights[i].assign(param)
+                
                 elif hasattr(self.model, 'state_dict'):
-                    params = [p.detach().cpu().numpy() for p in self.model.state_dict().values()]
+                    state_dict = self.model.state_dict()
+                    param_keys = list(state_dict.keys())
+                    for i, param in enumerate(parameters):
+                        if i < len(param_keys):
+                            state_dict[param_keys[i]] = torch.tensor(param)
+                    self.model.load_state_dict(state_dict)
                 else:
-                    if hasattr(self.model, 'estimators_'):
-                        params = [np.array([len(self.model.estimators_)])]
-                    else:
-                        params = [np.array([1.0])] 
-                return params
+                    pass 
 
 
             def get_parameters(self, config):
