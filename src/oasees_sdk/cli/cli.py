@@ -310,6 +310,80 @@ def join(ip,token,iface):
 
 
 @cli.command()
+def get_app():
+    """Get app services with their ports and deployment nodes"""
+    
+    try:
+        print("Fetching app information...")
+        
+        # Run kubectl command
+        result = subprocess.run([
+            "kubectl", "get", "pods,svc", 
+            "-o", "wide", 
+            "-l", "component=oasees-app"
+        ], capture_output=True, text=True, check=True)
+        
+        # Parse the output
+        lines = result.stdout.strip().split('\n')
+        
+        # Separate pods and services
+        pods = {}
+        services = {}
+        
+        current_section = None
+        for line in lines:
+            if line.startswith('NAME'):
+                continue
+            elif line.startswith('pod/'):
+                # Parse pod info: pod/name, ready, status, restarts, age, ip, node
+                parts = line.split()
+                if len(parts) >= 7:
+                    pod_name = parts[0].replace('pod/', '')
+                    node = parts[6]
+                    pods[pod_name] = node
+            elif line.startswith('service/'):
+                # Parse service info: service/name, type, cluster-ip, external-ip, port(s)
+                parts = line.split()
+                if len(parts) >= 5:
+                    service_name = parts[0].replace('service/', '')
+                    ports = parts[4]
+                    services[service_name] = ports
+        
+        # Output formatted results
+        print("\n" + "="*80)
+        print("OASEES APP DEPLOYMENT SUMMARY")
+        print("="*80)
+        
+        for service_name, ports in services.items():
+            # Find corresponding pod
+            pod_name = None
+            node = "Unknown"
+            
+            # Match service to pod (assuming service name matches pod prefix)
+            for pod, pod_node in pods.items():
+                if service_name in pod or pod.startswith(service_name):
+                    pod_name = pod
+                    node = pod_node
+                    break
+            
+            # Extract NodePort (the external port after the colon)
+            external_port = "N/A"
+            if ":" in ports:
+                external_port = ports.split(":")[-1].replace("/TCP", "")
+            
+            print(f"Service: {service_name:<20} | Port: {external_port:<6} | Node: {node}")
+        
+        print("="*80)
+        
+    except subprocess.CalledProcessError as e:
+        print(f"Error running kubectl command: {e}")
+        print(f"Make sure kubectl is installed and cluster is accessible")
+    except Exception as e:
+        print(f"Error processing app information: {e}")
+
+
+
+@cli.command()
 @click.argument('compose_file', type=str)
 @click.argument('output_dir', type=str)
 def convert_app(compose_file, output_dir):
@@ -348,6 +422,7 @@ def process_yaml_files(output_dir):
                 
 
                 oasees_ui_label = annotations.get('oasees.ui')
+                
                 if oasees_ui_label:
                     metadata['labels']['oasees-ui'] = 'true'
 
@@ -369,6 +444,8 @@ def process_yaml_files(output_dir):
                 
                 # Handle sensor resources
                 sensor_value = annotations.get('oasees.sensor')
+                spec = doc.get('spec', {})
+                spec['template']['metadata']['labels']['component'] ='oasees-app'
                 if sensor_value:
                     if 'spec' not in doc:
                         doc['spec'] = {}
@@ -395,7 +472,9 @@ def process_yaml_files(output_dir):
                 metadata = doc.get('metadata', {})
                 annotations = doc.get('metadata', {}).get('annotations', {})
                 oasees_ui_label = annotations.get('oasees.ui')
+                metadata['labels']['component'] ='oasees-app'
                 if oasees_ui_label:
+                    
                     metadata['labels']['oasees-ui'] = 'true'
                     oasees_ui_port = annotations.get('oasees.ui.port')
                     metadata['labels']['oasees-ui-port'] = oasees_ui_port

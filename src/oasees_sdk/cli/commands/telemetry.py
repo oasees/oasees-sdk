@@ -232,7 +232,6 @@ def deploy_collector(metric_index, source, source_endpoint, scrape_interval):
    click.echo(f"  Source Endpoint: {source_endpoint}")
    click.echo(f"  Scrape Interval: {scrape_interval} seconds")
    click.echo(f"  Pod Name: {pod_name}")
-   click.echo(f"  ConfigMap Name: {configmap_name}")
    click.echo()
    
    # Python collector script content
@@ -363,20 +362,6 @@ spec:
        result = subprocess.run(['kubectl', 'apply', '-f', temp_file_path], 
                              capture_output=True, text=True, check=True)
        
-       click.secho("✅ Deployment successful!", fg="green")
-       click.echo()
-       click.echo("Resources created:")
-       click.echo(f"  Pod: {pod_name}")
-       click.echo(f"  ConfigMap: {configmap_name}")
-       click.echo()
-       click.echo("To check the status:")
-       click.echo(f"  kubectl get pod {pod_name}")
-       click.echo(f"  kubectl logs {pod_name} -f")
-       click.echo()
-       click.echo("To delete the collector:")
-       click.echo(f"  kubectl delete pod {pod_name}")
-       click.echo(f"  kubectl delete configmap {configmap_name}")
-       click.echo()
        click.secho("Collector deployment completed successfully!", fg="green")
        
    except subprocess.CalledProcessError as e:
