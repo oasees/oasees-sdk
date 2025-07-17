@@ -386,3 +386,96 @@ spec:
        # Clean up temporary file
        if temp_file_path and os.path.exists(temp_file_path):
            os.unlink(temp_file_path)
+
+@telemetry_commands.command()
+@click.argument('config_file', type=click.Path(exists=True))
+def configure_agents(config_file):
+    '''Configure agents by providing the config.json'''
+    
+    import subprocess
+    import json
+    import requests
+    
+    try:
+        # Read the config file
+        with open(config_file, 'r') as f:
+            config_data = json.load(f)
+        
+        # Run kubectl command to get pods with oasees-agent component label
+        cmd = [
+            'kubectl', 'get', 'pods', 
+            '-l', 'component=oasees-agent',
+            '-o', 'json'
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        
+        # Parse the JSON output
+        pods_data = json.loads(result.stdout)
+        
+        # Extract pod IPs and node names
+        pod_data = []
+        for pod in pods_data.get('items', []):
+            pod_ip = pod.get('status', {}).get('podIP')
+            node_name = pod.get('spec', {}).get('nodeName')
+            if pod_ip and node_name:
+                pod_data.append((pod_ip, node_name))
+        
+        # Send config to each pod
+        for ip, node_name in pod_data:
+            try:
+                url = f"http://{ip}:5000/configure"
+                response = requests.post(url, json=config_data, timeout=10)
+                
+                if response.status_code == 200:
+                    print(f"Successfully configured agent on {node_name}")
+                else:
+                    try:
+                        error_msg = response.json().get('message', 'Unknown error')
+                        print(f"Failed to configure agent on {node_name}: HTTP {response.status_code} - {error_msg}")
+                    except:
+                        print(f"Failed to configure agent on {node_name}: HTTP {response.status_code}")
+                    
+            except requests.exceptions.RequestException as e:
+                print(f"Error sending config to agent on {node_name}: {e}")
+            
+    except FileNotFoundError:
+        print(f"Config file {config_file} not found")
+    except json.JSONDecodeError as e:
+        print(f"Error parsing config file: {e}")
+    except subprocess.CalledProcessError as e:
+        print(f"Error running kubectl command: {e}")
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+
+
+@telemetry_commands.command()
+def gen_config():
+    '''Generate config.json file with predefined configuration'''
+    
+    import json
+    
+    config = {
+        "metric_index": " ",
+        "propose_on": {
+            "events": [
+                " "                
+            ],
+            "proposal_contents": [
+               " "
+            ],
+            "vote_yes_on": [
+                " "
+            ]
+        },
+        "actions_map":{
+            " ":" "
+        }    
+    }
+    
+    try:
+        with open('config.json', 'w') as f:
+            json.dump(config, f, indent=4)
+        print("config.json generated")
+    except Exception as e:
+        print(f"Error generating config.json: {e}")
