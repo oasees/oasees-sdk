@@ -135,7 +135,8 @@ spec:
   restartPolicy: Never
   containers:
   - name: model-deploy
-    image: ghcr.io/oasees/ml-base-image:latest
+    image: oasees/ml-base-image:latest
+    imagePullPolicy: IfNotPresent
     env:
       - name: PROJECT_NAME
         value: "{project_name}"
@@ -399,7 +400,8 @@ spec:
     node-role.kubernetes.io/master: "true"
   containers:
   - name: fl-server
-    image: ghcr.io/oasees/ml-base-image:latest
+    image: oasees/ml-base-image:latest
+    imagePullPolicy: IfNotPresent
     command: ["/bin/bash", "-c"]
     env:
       - name: PROJECT_NAME
@@ -470,7 +472,8 @@ spec:
     kubernetes.io/hostname: {node_name}
   containers:
   - name: fl-client
-    image: ghcr.io/oasees/ml-base-image:latest
+    image: oasees/ml-base-image:latest
+    imagePullPolicy: IfNotPresent
     env:
       - name: PROJECT_NAME
         value: "{project_name}"

@@ -446,6 +446,9 @@ def process_yaml_files(output_dir):
                 sensor_value = annotations.get('oasees.sensor')
                 spec = doc.get('spec', {})
                 spec['template']['metadata']['labels']['component'] ='oasees-app'
+                if oasees_ui_label:
+                    spec['template']['metadata']['labels']['oasees-ui'] = 'true'
+                    
                 if sensor_value:
                     if 'spec' not in doc:
                         doc['spec'] = {}

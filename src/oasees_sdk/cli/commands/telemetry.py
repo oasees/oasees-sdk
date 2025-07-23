@@ -406,11 +406,36 @@ def configure_agents(config_file):
             if pod_ip and node_name:
                 pod_data.append((pod_ip, node_name))
         
+
         # Send config to each pod
+
         for ip, node_name in pod_data:
+            _config = json.loads(json.dumps(config_data))
+            for k in config_data['actions_map'].keys():
+                
+                if('localhost' in config_data['actions_map'][k]['action_endpoint']):
+                   
+
+                    cmd2 = [
+                        'kubectl','get', 'pods',
+                        '--field-selector', f'spec.nodeName={node_name}',
+                        '-l', 'component=oasees-app',
+                        '-o', 'json'
+                    ]
+
+
+                    result = subprocess.run(cmd2, capture_output=True, text=True, check=True)
+                    pd = json.loads(result.stdout)
+                    for pod in pd.get('items', []):
+                        pod_ip = pod.get('status', {}).get('podIP')
+                        labels = pod.get('metadata', {}).get('labels', {})
+                        if(not labels.get('oasees-ui')):
+                            _config['actions_map'][k]['action_endpoint'] = _config['actions_map'][k]['action_endpoint'].replace('localhost',pod_ip)
+
+            
             try:
-                url = f"http://{ip}:5000/configure"
-                response = requests.post(url, json=config_data, timeout=10)
+                url = f"http://{ip}:5100/configure"
+                response = requests.post(url, json=_config, timeout=10)
                 
                 if response.status_code == 200:
                     print(f"Successfully configured agent on {node_name}")
@@ -449,12 +474,17 @@ def gen_config():
             "proposal_contents": [
                " "
             ],
-            "vote_yes_on": [
+            "positive_vote_on": [
                 " "
             ]
         },
         "actions_map":{
-            " ":" "
+            " ":{
+                "action_endpoint": "",
+                "args":{
+
+                }
+            }
         }    
     }
     
