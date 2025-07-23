@@ -1039,6 +1039,12 @@ def init_project(name):
     folder_path.mkdir(exist_ok=True)
     
 
+    fl_server_file = os.path.join(folder_path, 'fl_server.py')
+    with open(fl_server_file, 'w') as f:
+        f.write(fl_server)
+
+
+
     training_notebook = notebook([
         code_cell("""
         from oasees_sdk import oasees_sdk
@@ -1048,47 +1054,52 @@ def init_project(name):
 
 
         code_cell("""       
+        import os
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+        os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'                  
         import time
         import argparse
         import flwr as fl
         import numpy as np
         import warnings
         import logging
-        import os
-        import torch
-        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-        os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  
         logging.getLogger("flwr").setLevel(logging.ERROR)
         warnings.filterwarnings("ignore", category=UserWarning, module="flwr")
-                
-
         """, readonly=True,tags=["readonly"]),
         
-        markdown_cell("## IMPORTS"),
+
+
 
         code_cell("""
+        %%capture
+        try:
+            parser = argparse.ArgumentParser(description='Flower Federated Learning Client')
+            parser.add_argument('--SERVER_ADDRESS', type=str, default='127.0.0.1:9999', help='Server address')
+            parser.add_argument('--DATA_PATH', type=str, default='/var/tmp/samples.npy', help='Path to data file')
+            parser.add_argument('--TARGET_PATH', type=str, default='/var/tmp/labels.npy', help='Path to target file')
+            parser.add_argument('--TRAIN_SPLIT', type=float, default=0.8, help='Training split ratio')
+            parser.add_argument('--CLIENT_ID', type=str, default='0', help='Client ID')
+            parser.add_argument('--EPOCHS', type=int, default=10, help='Number of epochs')
+            args = parser.parse_args()
+            SERVER_ADDRESS = args.SERVER_ADDRESS
+            DATA_PATH = args.DATA_PATH
+            TARGET_PATH = args.TARGET_PATH
+            TRAIN_SPLIT = args.TRAIN_SPLIT
+            CLIENT_ID = args.CLIENT_ID
+            EPOCHS = args.EPOCHS
+        except:
+            pass                  
+        """,readonly=True,tags=["readonly"]),
 
+
+        code_cell("""
+        ################USER INPUT - IMPORTS ############################
+
+
+        ######################################################
         """, editable=True,tags=[]),
 
-
         code_cell("oasees_sdk.list_sample_data()", readonly=True,tags=["readonly", "skip-execution"]),
-
-        code_cell("""
-        parser = argparse.ArgumentParser(description='Flower Federated Learning Client')
-        parser.add_argument('--SERVER_ADDRESS', type=str, default='127.0.0.1:9999', help='Server address')
-        parser.add_argument('--DATA_PATH', type=str, default='/var/tmp/samples.npy', help='Path to data file')
-        parser.add_argument('--TARGET_PATH', type=str, default='/var/tmp/labels.npy', help='Path to target file')
-        parser.add_argument('--TRAIN_SPLIT', type=float, default=0.8, help='Training split ratio')
-        parser.add_argument('--CLIENT_ID', type=str, default='0', help='Client ID')
-        parser.add_argument('--EPOCHS', type=int, default=10, help='Number of epochs')
-        args = parser.parse_args()
-        SERVER_ADDRESS = args.SERVER_ADDRESS
-        DATA_PATH = args.DATA_PATH
-        TARGET_PATH = args.TARGET_PATH
-        TRAIN_SPLIT = args.TRAIN_SPLIT
-        CLIENT_ID = args.CLIENT_ID
-        EPOCHS = args.EPOCHS                  
-        """,readonly=True,tags=["readonly"]),
 
 
         code_cell("""
@@ -1236,14 +1247,18 @@ def init_project(name):
         """,readonly=True,tags=["skip-execution"]),
 
         code_cell("""
-        def main():
-            fl.client.start_client(
-                server_address=SERVER_ADDRESS,
-                client=client.to_client()
-            )
+        %%capture
+        try:
+            def main():
+                fl.client.start_client(
+                    server_address=SERVER_ADDRESS,
+                    client=client.to_client()
+                )
 
-        if __name__ == "__main__":
-            main()
+            if __name__ == "__main__":
+                main()
+        except:
+            pass
         """, readonly=True,tags=["readonly"]),
 
 
@@ -1275,34 +1290,22 @@ def init_project(name):
         import io
         import numpy as np
         import argparse
-        import os
-        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-        os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-
         """, readonly=True,tags=["readonly"]),
 
         code_cell("""
-        import torch
-        import torch.nn as nn
+        ################USER-INPUT IMPORTS############################
+
+
+        #############################################################
         """),
 
 
         code_cell("""
         def model_definition():
-            class SimpleNN(nn.Module):
-                def __init__(self):
-                    super().__init__()
-                    self.fc1 = nn.Linear(4, 64)
-                    self.fc2 = nn.Linear(64, 32)
-                    self.fc3 = nn.Linear(32, 3)
-                    self.relu = nn.ReLU()
-                    
-                def forward(self, x):
-                    x = self.relu(self.fc1(x))
-                    x = self.relu(self.fc2(x))
-                    return self.fc3(x)
-            
-            model = SimpleNN()
+        ################USER-INPUT############################
+
+
+        #############################################################
             return model
         """),
 
@@ -1325,9 +1328,13 @@ def init_project(name):
         """),
 
         code_cell("""
-        parser = argparse.ArgumentParser(description='Flask ML Model Service')
-        parser.add_argument('--model-path', required=True, help='Path to the pickled model file')
-        args = parser.parse_args()
+        %%capture
+        try:
+            parser = argparse.ArgumentParser(description='Flask ML Model Service')
+            parser.add_argument('--model-path', required=True, help='Path to the pickled model file')
+            args = parser.parse_args()
+        except:
+            pass
         """, readonly=True,tags=["readonly"]),
 
 
@@ -1336,7 +1343,11 @@ def init_project(name):
         """,tags=["skip-execution"]),
 
         code_cell("""
-        model = load_fl_model(args.model_path)
+        %%capture
+        try:
+            model = load_fl_model(args.model_path)
+        except:
+            pass
         """, readonly=True,tags=["readonly"]),
 
 
@@ -1353,25 +1364,14 @@ def init_project(name):
         @app.route('/predict', methods=['POST'])
         def predict():
             try:
-                file = request.files['file']
+                json_data = request.get_json()
+                data = np.array(json_data['data'])
                 
-                data = np.load(io.BytesIO(file.read()))
-                
-                if data.ndim == 1:
-                    data = data.reshape(1, -1)
-                
-                input_tensor = torch.from_numpy(data).float()
-                
-                with torch.no_grad():
-                    output = model(input_tensor)
-                    probabilities = torch.softmax(output, dim=1)
-                    predicted_classes = torch.argmax(output, dim=1)
-                
-                results = {
-                    'predictions': predicted_classes.tolist(),
-                    'probabilities': probabilities.tolist(),
-                    'raw_output': output.tolist()
-                }
+                ######## USER INPUT ###################
+                  
+
+
+                #######################################
                 
                 return jsonify(results)
                 
@@ -1390,8 +1390,24 @@ def init_project(name):
         """,readonly=True,tags=["readonly","skip-execution"]),
 
         code_cell("""
-        run_server()
+        import requests
+        import numpy as np
+                  
+        data = np.load('')[0]
+        response = requests.post('http://localhost:5005/predict', 
+                        json={'data': data.tolist()})
+        print(response.json())           
+        """,readonly=False,tags=["skip-execution"]),
+
+
+        code_cell("""
+        %%capture
+        try:
+            run_server()
+        except:
+            pass
         """,readonly=True,tags=["readonly"]),
+
 
 
         code_cell("""
@@ -1415,7 +1431,7 @@ def init_project(name):
 @mlops_commands.command()
 @click.argument('name')
 def init_example_pytorch(name):
-    """Create a new project folder with an empty OASEES notebook"""
+    """Create a pytorch example project"""
     
 
     folder_path = Path(name)
