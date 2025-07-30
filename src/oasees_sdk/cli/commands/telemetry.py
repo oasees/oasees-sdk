@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import requests
 import re
+import uuid
 
 @click.group(name='telemetry')
 def telemetry_commands():
@@ -316,7 +317,7 @@ data:
 apiVersion: v1
 kind: Pod
 metadata:
- name: {pod_name}
+ name: {pod_name}-{uuid.uuid4()}
  labels:
    app: oasees-collector
    source: {sanitized_source}
@@ -494,3 +495,97 @@ def gen_config():
         print("config.json generated")
     except Exception as e:
         print(f"Error generating config.json: {e}")
+
+@telemetry_commands.command()
+def get_collectors():
+    """Get all collector pods with their deployment nodes"""
+    
+    try:
+        print("Fetching collector information...")
+        
+        # Run kubectl command
+        result = subprocess.run([
+            "kubectl", "get", "pods",
+            "-o", "wide",
+            "-l", "tag=collector"
+        ], capture_output=True, text=True, check=True)
+        
+        # Parse the output
+        lines = result.stdout.strip().split('\n')
+        
+        if len(lines) <= 1 or lines[0].startswith('No resources found'):
+            print("No collector pods found.")
+            return
+        
+        collectors = {}
+        
+        for line in lines:
+            if line.startswith('NAME'):
+                continue
+            
+            # Parse pod info: name, ready, status, restarts, age, ip, node
+            parts = line.split()
+            if len(parts) >= 7:
+                pod_name = parts[0]
+                status = parts[2]
+                node = parts[6]
+                collectors[pod_name] = {'status': status, 'node': node}
+        
+        # Output formatted results
+        print("\n" + "="*80)
+        print("COLLECTORS DEPLOYMENT SUMMARY")
+        print("="*80)
+        
+        if collectors:
+            for pod_name, info in collectors.items():
+                print(f"Collector: {pod_name:<30} | Status: {info['status']:<10} | Node: {info['node']}")
+        else:
+            print("No collector pods found.")
+        
+        print("="*80)
+        print("To delete a collector, use:")
+        print("  oasees-sdk telemetry delete-collector <collector-name>")
+        print("="*80)
+        
+    except subprocess.CalledProcessError as e:
+        print(f"Error running kubectl command: {e}")
+        print(f"Make sure kubectl is installed and cluster is accessible")
+    except Exception as e:
+        print(f"Error processing collector information: {e}")
+
+
+@telemetry_commands.command()
+@click.argument('collector_name')
+def delete_collector(collector_name):
+    """Delete a collector pod by name"""
+    
+    try:
+        print(f"Deleting collector pod: {collector_name}")
+        
+        # Run kubectl delete command with --force flag
+        result = subprocess.run([
+            "kubectl", "delete", "pod", collector_name, "--force"
+        ], capture_output=True, text=True, check=True)
+        
+        if result.stdout.strip():
+            print(f"✓ Successfully deleted collector: {collector_name}")
+            
+    except subprocess.CalledProcessError as e:
+        print(f"✗ Error deleting collector '{collector_name}': {e}")
+        if e.stderr:
+            print(f"Error details: {e.stderr.strip()}")
+        
+        # Check if pod exists
+        try:
+            check_result = subprocess.run([
+                "kubectl", "get", "pod", collector_name
+            ], capture_output=True, text=True)
+            
+            if check_result.returncode != 0:
+                print(f"Pod '{collector_name}' not found. Use 'oasees-sdk telemetry get-collectors' to see available collectors.")
+            
+        except Exception:
+            pass  # Ignore errors in the check
+            
+    except Exception as e:
+        print(f"✗ Unexpected error deleting collector '{collector_name}': {e}")
