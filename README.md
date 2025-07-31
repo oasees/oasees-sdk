@@ -1,12 +1,18 @@
 # Oasees SDK
 
-The OASEES SDK is a Python package that consists of two modules: the **Command Line Interface (CLI)** module and the **Python Environment** module.
+Despite its name, the OASEES SDK is a Rapid Development Toolkit (RDK) developed in the context of the OASEES Project, that:
+
+1. Facilitates the provisioning of a Kubernetes cluster that comes with the OASEES framework's core components pre-installed.
+2. Provides templates and commands for the deployment of user applications in a way that enables immediate interaction with said components, as well as the OASEES Blockchain.
+3. Provides templates and commands for the development and deployment of Machine Learning and Federated Learning workflows.
+
+The SDK comes in the form of a Python Package, and its functionality is split between two core modules: a **Command Line Interface** module and a **Python module SDK**.
 
 <br>
 
 ## CLI
 
-The CLI module's purpose is to handle the Kubernetes aspect of the OASEES framework. It provides the user with a few simple commands to quickly provision and configure a Kubernetes cluster, as well as facilitate and automate its nodes' connection to the OASEES blockchain
+The CLI module's purpose is to handle the Kubernetes aspect of the OASEES framework.
 <br>
 
 ### <ins>Installation</ins>
@@ -25,9 +31,15 @@ Ensure that pip is present on your machine. If not, install it:
 
 <li>
 
-Install with pip:
+Then either install with pip through its PyPi release:
+    
+    pip install oasees-sdk
+
+Or through its official GitHub repository:
 
     pip install git+https://github.com/oasees/oasees-sdk.git
+    
+    
   
 
 </li>
@@ -58,17 +70,7 @@ Which will also provide you with the CLI's available commands and a very short d
 
 <br><br>
 
-### <ins>Usage</ins>
-
-#### <ins>Important note:</ins> Before using the CLI module, ensure that an instance of the OASEES stack is up and running.
-
-The SDK is designed to work in parallel with the rest of the stack. Before provisioning a cluster, <ins>the user will be prompted to enter the stack's IP address and their blockchain account information</ins> (if you're using a test account, make sure it's the same one that you've imported on MetaMask).
-
-Should any typing mistake happen during the input prompts, you can edit the configuration file located in `/home/{username}/.oasees_sdk/config.json`, or use `oasees-sdk config-full-reset` to completely reset the configuration and force the prompts to reappear.
-
-<br>
-
-***
+### Usage
 
 <br>
 
@@ -84,88 +86,160 @@ As mentioned above, executing `oasees-sdk` in your terminal will give you a list
 
 <br>
 
-#### <ins>The CLI's typical usage flow:</ins>
+### I. Stack and Node Management
 
-<ol>
+Commands for initializing the OASEES stack on the master node and managing worker nodes.
 
-<li>
+* #### `oasees-sdk init`
+    * **Description**: Provisions the Oasees stack on the master node.
+    * **Argument**: `--expose-ip <YOUR_MASTERS_IP>` (Required): The IP address of the master node to expose the Oasees portal.
+    * **Usage**:
+        ```bash
+        oasees-sdk init --expose-ip <YOUR MASTERS's IP>
+        ```
 
-Install the OASEES SDK on all the machines that will participate in the cluster (**both the master node and the worker nodes**) using the installation commands mentioned above.
+* #### `oasees-sdk get-token`
+    * **Description**: Generates a token required for joining worker-agent nodes to the master.
+    * **Usage**:
+        ```bash
+        oasees-sdk get-token
+        ```
 
-</li>
-
-<br>
-
-<li>
-
-Provision a K3S Cluster on the machine that represents the cluster's **master node**:
-
-    oasees-sdk init-cluster
-
-The cluster should be visible on your Portal's home page almost immediately.
-</li>
-
-<br>
-
-<li>
-
-Retrieve your cluster's token:
-
-    oasees-sdk get-token
-
-</li>
-
-<br>
-
-<li>
-
-Execute the join-cluster command **on each of your worker devices** to join them with your cluster, providing the master's IP address and the retrieved token:
-
-    oasees-sdk join-cluster --ip {K3S_MASTER_IP_ADDRESS} --token {K3S_MASTER_TOKEN}
-
-**NOTE: If you're using a VPN connection, make sure to specify that connection's network interface by setting an extra flag:**
-
-    oasees-sdk join-cluster --ip {K3S_MASTER_IP_ADDRESS} --token {K3S_MASTER_TOKEN} --iface {VPN_INTERFACE}
-
-
-</li>
-
-<br>
-
-<li>
-
-Execute the register-new-nodes command **on your master node** to create blockchain accounts for each of your unregistered worker devices, register them to the blockchain and associate them with your cluster:
-
-    oasees-sdk register-new-nodes
-
-**NOTE:** This command detects and handles only the nodes that aren't already registered on the blockchain, so you can use it multiple times as you scale your K3S Cluster with new devices / nodes.
-
-</li>
-
-<br>
-
-<li>
-
-If you intend to associate your cluster with a blockchain DAO, execute the apply-dao-logic command **on your master node**, providing the IPFS hash of your uploaded DAO contracts:
-
-    oasees-sdk apply-dao-logic {DAO_CONTRACTS_IPFS_HASH}
-
-After the DAO logic is applied, devices that are already registered on the blockchain, as well as devices that get registered at a later point, will automatically be able to perform DAO actions such as creating proposals and voting.
-
-</li>
-
-</ol>
-
-<br>
-
-### [Click here for a video demo of the above steps.](https://nocncsrd.sharepoint.com/:v:/r/sites/OASEES2/Shared%20Documents/WP4/Meetings/OASEES%20stack%20%26%20sdk%20new%20installation%20guide/cli_demo_2.mp4?csf=1&web=1&e=gkYTbE)
-
-
-<br>
+* #### `oasees-sdk join`
+    * **Description**: Joins a device to the cluster as a worker-agent node. This must be run on each device that will be a worker.
+    * **Arguments**:
+        * `--ip <YOUR MASTER's IP>` (Required): The IP address of the master node.
+        * `--token <TOKEN>` (Required): The token generated from the `oasees-sdk get-token` command.
+    * **Usage**:
+        ```bash
+        oasees-sdk join --ip <YOUR MASTER's IP> --token <TOKEN>
+        ```
 
 ***
 
-<br>
+### II. Application Management
+
+Commands for converting and deploying applications on the OASEES stack.
+
+* #### `oasees-sdk convert-app`
+    * **Description**: Converts a Docker Compose file with OASEES-specific labels into a format that can be deployed on the stack.
+    * **Arguments**:
+        * `<docker-compose-file>` (Required): The path to the OASEES-compatible `docker-compose.yaml` file.
+        * `<app-name>` (Required): A name for the new application.
+    * **Usage**:
+        ```bash
+        oasees-sdk convert-app docker-compose_oasees.yaml my-app
+        ```
+
+* #### `oasees-sdk deploy-app`
+    * **Description**: Deploys a converted application to the cluster.
+    * **Argument**: `<app-name>` (Required): The name of the application you want to deploy.
+    * **Usage**:
+        ```bash
+        oasees-sdk deploy-app my-app
+        ```
+
+* #### `oasees-sdk get-app`
+    * **Description**: Displays a summary of a deployed application, showing which service is running on which node and on which port.
+    * **Usage**:
+        ```bash
+        oasees-sdk get-app
+        ```
+
+***
+
+### III. Telemetry
+
+Commands for managing metrics collection and agent configuration for DAO interactions. All telemetry commands can be listed by running `$ oasees-sdk telemetry`.
+
+* #### `oasees-sdk telemetry deploy-collector`
+    * **Description**: Deploys a collector to scrape metrics from a specified endpoint.
+    * **Arguments**:
+        * `-i <metric_index>` (Required): The name for the metric index to group metrics together[.
+        * `-s <device_name>` (Required): The device where the collector will be deployed.
+        * `-se <scrape_endpoint>` (Required): The URL endpoint to scrape for metrics.
+    * **Usage**:
+        ```bash
+        oasees-sdk telemetry deploy-collector -i swarm_metrics -s device4 -se http://192.168.88.239:32691/metrics
+        ```
+
+* #### `oasees-sdk telemetry metric-index`
+    * **Description**: Lists all created metric indices.
+    * **Usage**:
+        ```bash
+        oasees-sdk telemetry metric-index
+        ```
+
+* #### `oasees-sdk telemetry metrics-list`
+    * **Description**: Lists all metrics being ingested for a specific metric index.
+    * **Argument**: `-i <metric_index>` (Required): The name of the metric index.
+    * **Usage**:
+        ```bash
+        oasees-sdk telemetry metrics-list -i swarm_metrics
+        ```
+
+* #### `oasees-sdk telemetry gen-config`
+    * **Description**: Generates a configuration template file (`.json`) in the current path. This file is used to program the behavior of agents to propose and vote on DAO actions based on metrics.
+
+***
+
+### IV. MLOps & Federated Learning
+
+Commands to support federated learning workflows, including data preparation, pipeline creation, training, and model deployment. An overview of commands is available via `$ oasees-sdk mlops`.
+
+* #### `oasees-sdk mlops init-project`
+    * **Description**: Creates project templates for federated learning.
+    * **Argument**: `<project-name>` (Required): The name of the new ML project.
+    * **Usage**:
+        ```bash
+        oasees-sdk mlops init-project <project-name>
+        ```
+
+* #### `oasees-sdk mlops prepare-dataset`
+    * **Description**: Prepares a device for federated learning. It creates and uploads synthetic data to IPFS while keeping the original data on the device.
+    * **Arguments**:
+        * `<samples.npy>` (Required): The `.npy` file containing the data samples/features.
+        * `<labels.npy>` (Required): The `.npy` file containing the data labels.
+    * **Usage**:
+        ```bash
+        oasees-sdk mlops prepare-dataset iris_data.npy iris_target.npy
+        ```
+
+* #### `oasees-sdk mlops ipfs-ls`
+    * **Description**: Lists files stored in IPFS for a given project path.
+    * **Usage**:
+        ```bash
+        oasees-sdk mlops ipfs-ls projects/ml
+        ```
+
+* #### `oasees-sdk mlops fl-data-nodes`
+    * **Description**: Lists the devices that have data ready for federated learning.
+    * **Usage**:
+        ```bash
+        oasees-sdk mlops fl-data-nodes
+        ```
+
+* #### `oasees-sdk mlops start-fl`
+    * **Description**: Starts a federated learning process with a server and clients.
+    * **Arguments**:
+        * `--project-name TEXT` (Required): The name of the ML project.
+        * `--data-files TEXT` (Required): A colon-separated list of `data,target,node` triplets (e.g., "file.npy,target.npy,node1:file.npy,target.npy,node2").
+        * `--num-rounds INTEGER` (Optional): The number of training rounds (default: 5).
+        * `--epochs INTEGER` (Optional): The number of epochs per client per round (default: 5).
+    * **Usage**:
+        ```bash
+        oasees-sdk mlops start-fl --project-name example1 --data-files "iris_data.npy,iris_target.npy,device1:iris_data.npy,iris_target.npy,device2"
+        ```
+
+* #### `oasees-sdk mlops deploy-model`
+    * **Description**: Deploys a trained model for inference.
+    * **Arguments**:
+        * `--project=<project-name>` (Required): The name of the project the model belongs to.
+        * `--model=<model-file.pkl>` (Required): The name of the trained model file.
+    * **Usage**:
+        ```bash
+        oasees-sdk mlops deploy-model --project-name=example1 --model=example1_2025-07-24_06-16-15.pkl
+        ```
 
 #### <ins>Uninstalling</ins>
 
@@ -177,71 +251,9 @@ and **on <ins>each</ins> of your worker nodes**:
 
     oasees-sdk uninstall agent #UNINSTALLS K3S AGENT ON WORKER NODE
 
-<br>
-
-***
 
 <br>
 
 ## Python Module SDK
 
-The Python Environment portion of the SDK is embedded into the Jupyter Notebook image which is built upon the creation of the OASEES stack. This means that no installation of the SDK and its requirements is needed from the user's side. It only needs to be imported either into a Jupyter Notebook or Python Console by running:
-
-    from oasees_sdk import oasees_sdk
-
-<br/>
-
-Or in the stack's Jupyter Terminal (all three options are found in the portal's <i>Notebook</i> tab), where you first need to launch the python shell by running:
-
-    python3
-
-And then import the SDK as indicated.
-
-<br/>
-
-
-### Usage / Instructions
-As soon as the SDK gets successfully imported into the chosen python environment, the following brief documentation about its functions and their usage is printed:
-
-```
-╔════════════════════════════════════════════════════════════════════════════════════╗
-║ OASEES SDK methods                                                                 ║
-║ ------------------------------                                                     ║
-║                                                                                    ║
-║     my_algorithms()                                                                ║
-║         Returns a list with all the algorithms purchased from your account         ║
-║         on the OASEES Marketplace.                                                 ║
-║                                                                                    ║
-║                                                                                    ║
-║     my_devices()                                                                   ║
-║         Returns a list with all the devices purchased / uploaded from your account ║
-║         on the OASEES Marketplace.                                                 ║
-║                                                                                    ║
-║                                                                                    ║
-║     build_image()                                                                  ║
-║         Deploys a job on the Kubernetes cluster associated with your blockchain    ║
-║     account, which builds a container image out of your specified folder.          ║
-║     The image will then be stored on your master node, and will be available       ║
-║     for deployment on any of the cluster's nodes specified in your manifest file.  ║
-║                                                                                    ║
-║         - image_folder_path: Needs to be providerd in "string" form.               ║
-║                                                                                    ║
-║     e.g. DApp_Image_Folder -> build_image("DApp_Image_Folder")                     ║
-║                                                                                    ║
-║                                                                                    ║
-║                                                                                    ║
-║                                                                                    ║
-║     deploy_manifest()                                                              ║
-║         Deploys all the objects included in your specified manifest file, on the   ║
-║     Kubernetes cluster associated with your blockchain account.                    ║
-║                                                                                    ║
-║     - manifest_file_path: Needs to be providerd in "string" form.                  ║
-║                                                                                    ║
-║     e.g. manifest.yaml -> build_image("manifest.yaml")                             ║
-║                                                                                    ║
-║                                                                                    ║
-║     instructions()                                                                 ║
-║         Reprints the above documentation.                                          ║
-║                                                                                    ║
-╚════════════════════════════════════════════════════════════════════════════════════╝
-```
+Information about the Python module SDK to be added.
