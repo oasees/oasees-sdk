@@ -323,6 +323,8 @@ metadata:
    source: {sanitized_source}
    tag: collector
 spec:
+  nodeSelector:
+    kubernetes.io/hostname: {sanitized_source}
  restartPolicy: Never
  containers:
  - name: collector
