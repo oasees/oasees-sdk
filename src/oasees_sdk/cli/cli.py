@@ -230,25 +230,37 @@ def get_nodes():
 @cli.command()
 @click.option('--expose-ip', required=False, help="Expose a node's IP if you plan accessing the stack remotely.")
 @click.option('--update', required=False, is_flag=True, help="Use this to skip cluster initialization.")
-def init(expose_ip,update):
+@click.option('--iface', required=False, help="Use this to to specify the network interface")
+def init(expose_ip,update,iface):
 # def init(update):    
     '''Sets up the OASEES cluster.'''
-
+    cmd = None
     if(check_required_tools()):
         if not update:
             try:
                 curl = subprocess.Popen(['curl','-sfL', 'https://get.k3s.io'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                result = subprocess.check_output(['sh','-s','-','--write-kubeconfig-mode','644', '--write-kubeconfig', '/home/'+getpass.getuser()+'/.kube/config', '--node-label', 'user='+getpass.getuser()], stdin=curl.stdout)
+                
+                if not iface:
+                    cmd = [
+                        'sh','-s','-','--write-kubeconfig-mode','644',
+                        '--write-kubeconfig', '/home/'+getpass.getuser()+'/.kube/config',
+                        '--node-label', 'user='+getpass.getuser()
+                        ]
+                else:
+                    cmd = [
+                        'sh','-s','-','--write-kubeconfig-mode','644',
+                        '--write-kubeconfig', '/home/'+getpass.getuser()+'/.kube/config',
+                        '--node-label', 'user='+getpass.getuser(),'--flannel-iface',iface
+                        ]
+                
+                result = subprocess.check_output(cmd,stdin=curl.stdout)
+                
                 click.echo(result)
                 curl.wait()
 
             except subprocess.CalledProcessError as e:
                 return e.stderr
         
-
-        # expose_ip = get_ip()
-
-
         try:
             helm_add_oasees_repo()
             click.echo('\n')
