@@ -301,13 +301,7 @@ def get_token():
     except FileNotFoundError:
         click.echo("Error: No token found.")
 
-
-@cli.command()
-@click.option('--ip', required=True, help="The cluster's master ip address.")
-@click.option('--token', required=True, help="The cluster's master token.")
-@click.option('--iface', required=False, help="The network interface you want to join with (tun0 if you're using a VPN connection).")
-def join(ip,token,iface):
-    '''Joins the current machine to the specified cluster, using the specified interface if one is provided.'''
+def join_util(ip, token, iface):
     try:
         curl = subprocess.Popen(['curl','-sfL', 'https://get.k3s.io'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
@@ -319,6 +313,14 @@ def join(ip,token,iface):
         curl.wait()
     except FileNotFoundError:
         click.echo("Error: K3S cluster could not be joined.\n")
+
+@cli.command()
+@click.option('--ip', required=True, help="The cluster's master ip address.")
+@click.option('--token', required=True, help="The cluster's master token.")
+@click.option('--iface', required=False, help="The network interface you want to join with (tun0 if you're using a VPN connection).")
+def join(ip,token,iface):
+    '''Joins the current machine to the specified cluster, using the specified interface if one is provided.'''
+    return join_util(ip, token, iface)
 
 
 @cli.command()
