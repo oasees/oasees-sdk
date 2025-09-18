@@ -274,19 +274,21 @@ def init(expose_ip,update,iface):
     else:
         click.secho("Please install Helm and / or Kompose before trying again.", fg="red")
 
+def uninstall_util(role):
+    if(role=='master'):
+        result = subprocess.run(['/usr/local/bin/k3s-uninstall.sh'],  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        click.echo("Cluster uninstalled successfully.")
+    elif (role=='agent'):
+        result = subprocess.run(['/usr/local/bin/k3s-agent-uninstall.sh'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        click.echo("Agent uninstalled successfully.")
+    else:
+        click.echo("Enter a valid role (master / agent)")
 @cli.command()
 @click.argument('role', type=str)
 def uninstall(role):
     '''Runs the appropriate k3s uninstallation script based on the role provided.'''
     try:
-        if(role=='master'):
-            result = subprocess.run(['/usr/local/bin/k3s-uninstall.sh'],  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            click.echo("Cluster uninstalled successfully.")
-        elif (role=='agent'):
-            result = subprocess.run(['/usr/local/bin/k3s-agent-uninstall.sh'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            click.echo("Agent uninstalled successfully.")
-        else:
-            click.echo("Enter a valid role (master / agent)")
+        uninstall_util(role)
     except FileNotFoundError:
         click.echo("Error: Uninstall executable not found.")
 
