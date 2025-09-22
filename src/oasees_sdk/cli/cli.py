@@ -21,6 +21,7 @@ import re
 from .commands.mlops import mlops_commands
 from .commands.telemetry import telemetry_commands
 from .commands.display_banner import display_banner
+from .commands.update import update
 
 
 def get_ip():
@@ -52,6 +53,7 @@ def cli(ctx):
 
 cli.add_command(mlops_commands)
 cli.add_command(telemetry_commands)
+cli.add_command(update)
 # cli.add_command(display_banner)
 
 # @click.option('--price', required=False, type=float, default=0, help="")
