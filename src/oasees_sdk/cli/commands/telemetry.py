@@ -325,7 +325,7 @@ metadata:
 spec:
  nodeSelector:
    kubernetes.io/hostname: {sanitized_source}
- restartPolicy: Never
+ restartPolicy: Always
  containers:
  - name: collector
    image: python:3.9-slim
