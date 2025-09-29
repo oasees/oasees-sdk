@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "oasees_sdk"
-version = "0.7.2"
+version = "0.7.3"
 description = "Oasees SDK"
 authors = [
     "Achilleas Economopoulos",
