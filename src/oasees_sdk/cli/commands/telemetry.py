@@ -408,6 +408,7 @@ def configure_agents(config_file):
             node_name = pod.get('spec', {}).get('nodeName')
             if pod_ip and node_name:
                 pod_data.append((pod_ip, node_name))
+
         
 
         # Send config to each pod
@@ -422,6 +423,13 @@ def configure_agents(config_file):
                     cmd2 = [
                         'kubectl','get', 'pods',
                         '--field-selector', f'spec.nodeName={node_name}',
+                        '-l', 'component=oasees-app,oasees-action=true',
+                        '-o', 'json'
+                    ]
+
+                    cmd2_alt = [
+                        'kubectl','get', 'pods',
+                        '--field-selector', f'spec.nodeName={node_name}',
                         '-l', 'component=oasees-app',
                         '-o', 'json'
                     ]
@@ -429,6 +437,10 @@ def configure_agents(config_file):
 
                     result = subprocess.run(cmd2, capture_output=True, text=True, check=True)
                     pd = json.loads(result.stdout)
+                    if not pd.get('items',[]):
+                        result = subprocess.run(cmd2_alt, capture_output=True, text=True, check=True)
+                        pd = json.loads(result.stdout)
+
                     for pod in pd.get('items', []):
                         pod_ip = pod.get('status', {}).get('podIP')
                         labels = pod.get('metadata', {}).get('labels', {})

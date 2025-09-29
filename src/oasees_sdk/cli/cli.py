@@ -436,9 +436,12 @@ def process_yaml_files(output_dir):
                 
 
                 oasees_ui_label = annotations.get('oasees.ui')
+                oasees_action_label = annotations.get('oasees.action')
                 
                 if oasees_ui_label:
                     metadata['labels']['oasees-ui'] = 'true'
+                if oasees_action_label:
+                    metadata['labels']['oasees-action'] = 'true'
 
                 
                 # Handle nodeSelector
@@ -462,6 +465,9 @@ def process_yaml_files(output_dir):
                 spec['template']['metadata']['labels']['component'] ='oasees-app'
                 if oasees_ui_label:
                     spec['template']['metadata']['labels']['oasees-ui'] = 'true'
+
+                if oasees_action_label:
+                    spec['template']['metadata']['labels']['oasees-action'] = 'true'
                     
                 if sensor_value:
                     if 'spec' not in doc:
