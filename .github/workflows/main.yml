@@ -1,13 +1,7 @@
 name: CI for Oasees-sdk
 
-on:
-  push:
-    branches:
-      - master
-  # pull_request:
-  #   branches:
-  #     - main
-
+on: workflow_dispatch
+  
 jobs:
   k3s-cluster-init:
     runs-on: oasees-sdk-master
