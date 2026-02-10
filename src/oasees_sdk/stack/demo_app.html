@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>COGNETS SDK: NCE &amp; NWO Demo</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0e17;--panel:#111827;--border:#1e293b;--text:#e2e8f0;--muted:#64748b;
+  --green:#22c55e;--blue:#3b82f6;--orange:#f59e0b;--red:#ef4444;--purple:#a855f7;
+  --teal:#14b8a6;--cyan:#06b6d4;--dark:#1e293b;
+  --dsm:#3b82f6;--nwo:#f59e0b;--nce:#22c55e;--nds:#a855f7;--ndm:#ef4444;--k8s:#475569;--model:#14b8a6;
+}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;overflow-x:hidden}
+h1{font-size:1.4rem;font-weight:700;letter-spacing:-.02em}
+.app{display:grid;grid-template-columns:1fr 420px;grid-template-rows:auto 1fr auto;height:100vh;gap:0}
+/* Header */
+.header{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel)}
+.header-left{display:flex;align-items:center;gap:16px}
+.logo{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,var(--cyan),var(--blue));display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14px;color:#fff}
+.advantage-card{display:flex;align-items:center;gap:10px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:#0f172a;font-size:11px;color:var(--muted)}
+.advantage-title{color:var(--cyan);font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:9.5px}
+.advantage-metric{display:flex;gap:4px;align-items:center}
+.advantage-metric span{color:var(--green);font-weight:700}
+.controls{display:flex;gap:8px;align-items:center}
+.btn{padding:8px 18px;border:1px solid var(--border);border-radius:6px;background:var(--panel);color:var(--text);cursor:pointer;font-size:13px;font-weight:500;transition:all .15s}
+.btn:hover{background:#1e293b;border-color:#334155}
+.btn-primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn-primary:hover{background:#2563eb}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed}
+.btn-warn{background:var(--orange);border-color:var(--orange);color:#000}
+.toggle{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.toggle input{accent-color:var(--blue)}
+.step-label{font-size:13px;color:var(--muted);min-width:140px;text-align:right}
+/* Diagram */
+.diagram-panel{position:relative;overflow:hidden;border-right:1px solid var(--border)}
+.diagram-panel svg{width:100%;height:100%}
+/* Log */
+.log-panel{display:flex;flex-direction:column;background:#0d1117;overflow:hidden}
+.log-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600;color:var(--green);display:flex;align-items:center;gap:8px}
+.log-header::before{content:'●';color:var(--green);animation:blink 1.5s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.log-body{flex:1;overflow-y:auto;padding:12px 16px;font-family:'SF Mono','Fira Code','Cascadia Code',monospace;font-size:12px;line-height:1.7}
+.log-entry{color:var(--green);opacity:0;animation:fadeIn .3s forwards}
+.log-entry .ts{color:var(--muted)}
+.log-entry .tag{font-weight:700}
+.log-entry.phase-line{color:var(--cyan);font-weight:700;margin-top:8px}
+@keyframes fadeIn{to{opacity:1}}
+/* JSON Viewer */
+.json-panel{position:absolute;bottom:16px;left:16px;right:436px;max-height:260px;background:#0f172a;border:1px solid var(--border);border-radius:8px;overflow:hidden;z-index:10;transition:all .3s}
+.json-panel.hidden{opacity:0;pointer-events:none;transform:translateY(10px)}
+.json-header{display:flex;justify-content:space-between;align-items:center;padding:8px 14px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600;color:var(--cyan);cursor:pointer}
+.json-body{padding:12px 14px;overflow-y:auto;max-height:200px;font-family:'SF Mono','Fira Code',monospace;font-size:11.5px;line-height:1.6;white-space:pre-wrap;word-break:break-all}
+.json-body .jk{color:var(--cyan)}.json-body .js{color:var(--green)}.json-body .jn{color:var(--orange)}.json-body .jb{color:var(--purple)}.json-body .jp{color:var(--muted)}
+/* Dataset Panel */
+.dataset-panel{position:absolute;top:16px;right:16px;width:260px;background:#0f172a;border:1px solid var(--border);border-radius:8px;overflow:hidden;z-index:9}
+.dataset-header{padding:8px 12px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--orange);text-transform:uppercase;letter-spacing:.06em}
+.dataset-body{padding:10px 12px}
+.dataset-video{width:100%;border-radius:6px;border:1px solid var(--border);background:#000}
+.compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.video-wrap{position:relative}
+.video-wrap canvas{position:absolute;inset:0;pointer-events:none}
+.video-label{font-size:10px;color:var(--muted);margin-bottom:4px}
+.processed{filter:contrast(1.1) saturate(1.2)}
+.dataset-meta{margin-top:6px;font-size:10.5px;color:var(--muted);line-height:1.4}
+/* Advantage Breakdown */
+.adv-panel{position:absolute;top:248px;right:16px;width:260px;background:#0f172a;border:1px solid var(--border);border-radius:8px;overflow:hidden;z-index:8}
+.adv-header{padding:8px 12px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--cyan);text-transform:uppercase;letter-spacing:.06em}
+.adv-body{padding:10px 12px}
+.adv-formula{font-size:10px;color:var(--muted);line-height:1.4;margin-bottom:8px}
+.adv-row{display:grid;grid-template-columns:1fr 48px;gap:6px;padding:6px 0;border-bottom:1px dashed #1e293b;font-size:10.5px}
+.adv-row:last-child{border-bottom:none}
+.adv-row.active .adv-node{color:var(--cyan);font-weight:700}
+.adv-score{text-align:right;color:var(--green);font-weight:700}
+.adv-meta{grid-column:1/-1;color:var(--muted);font-size:10px}
+.adv-empty{font-size:10px;color:var(--muted)}
+/* Progress */
+.progress-bar{grid-column:1/-1;display:flex;align-items:center;padding:12px 24px;gap:0;border-top:1px solid var(--border);background:var(--panel)}
+.phase{flex:1;display:flex;align-items:center;gap:8px;position:relative}
+.phase-dot{width:28px;height:28px;border-radius:50%;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;transition:all .4s;flex-shrink:0}
+.phase-dot.active{border-color:var(--blue);background:var(--blue);color:#fff;box-shadow:0 0 12px rgba(59,130,246,.5)}
+.phase-dot.done{border-color:var(--green);background:var(--green);color:#fff}
+.phase-line{flex:1;height:2px;background:var(--border);transition:background .4s}
+.phase-line.done{background:var(--green)}
+.phase-label{font-size:11px;color:var(--muted);position:absolute;top:34px;left:0;white-space:nowrap}
+.phase:last-child .phase-line{display:none}
+/* SVG Components */
+.comp{cursor:default;transition:filter .3s}
+.comp rect{transition:all .4s;rx:8;ry:8}
+.comp text{font-family:'Segoe UI',system-ui,sans-serif;fill:#fff;font-weight:600;font-size:13px;pointer-events:none}
+.comp .subtitle{font-size:9.5px;fill:rgba(255,255,255,.6);font-weight:400}
+.comp.active rect{filter:drop-shadow(0 0 16px var(--glow));stroke-width:2.5}
+.comp.active{animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.3)}}
+/* Arrows */
+.arrow-path{fill:none;stroke:var(--border);stroke-width:2;stroke-dasharray:6,4}
+.arrow-path.active{stroke:var(--cyan);stroke-width:2.5;stroke-dasharray:none}
+.travel-dot{r:5;fill:var(--cyan);opacity:0;filter:drop-shadow(0 0 6px var(--cyan))}
+.travel-dot.active{opacity:1}
+/* Scrollbar */
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#334155;border-radius:3px}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="logo">C</div>
+      <h1>COGNETS SDK: NCE &amp; NWO Demo</h1>
+      <div class="advantage-card">
+        <div class="advantage-title">Swarm Advantage</div>
+        <div class="advantage-metric">Latency <span id="advLatency">--</span></div>
+        <div class="advantage-metric">Throughput <span id="advThroughput">--</span></div>
+        <div class="advantage-metric">Cost <span id="advCost">--</span></div>
+      </div>
+    </div>
+    <div class="controls">
+      <span class="step-label" id="stepLabel">Ready</span>
+      <label class="toggle"><input type="checkbox" id="autoPlay">Auto Play</label>
+      <button class="btn btn-primary" id="nextBtn" onclick="nextStep()">Next Step ▶</button>
+      <button class="btn" onclick="resetDemo()">Reset ↺</button>
+    </div>
+  </div>
+  <!-- Diagram -->
+  <div class="diagram-panel">
+    <svg id="diagram" viewBox="0 0 760 520" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <marker id="ah" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#334155"/></marker>
+        <marker id="ahActive" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#06b6d4"/></marker>
+      </defs>
+      <!-- Arrows (drawn first, behind boxes) -->
+      <!-- DSM→NWO -->
+      <path id="a-dsm-nwo" class="arrow-path" d="M185,90 L310,90" marker-end="url(#ah)"/>
+      <circle id="d-dsm-nwo" class="travel-dot" cx="0" cy="0"><animateMotion dur="0.6s" fill="freeze" path="M185,90 L310,90" begin="indefinite" id="am-dsm-nwo"/></circle>
+      <!-- NWO→NDS -->
+      <path id="a-nwo-nds" class="arrow-path" d="M420,120 L420,200 L185,200" marker-end="url(#ah)"/>
+      <circle id="d-nwo-nds" class="travel-dot" cx="0" cy="0"><animateMotion dur="0.7s" fill="freeze" path="M420,120 L420,200 L185,200" begin="indefinite" id="am-nwo-nds"/></circle>
+      <!-- NDS→NWO -->
+      <path id="a-nds-nwo" class="arrow-path" d="M185,220 L420,220 L420,120" marker-end="url(#ah)"/>
+      <circle id="d-nds-nwo" class="travel-dot" cx="0" cy="0"><animateMotion dur="0.7s" fill="freeze" path="M185,220 L420,220 L420,120" begin="indefinite" id="am-nds-nwo"/></circle>
+      <!-- NWO→NCE -->
+      <path id="a-nwo-nce" class="arrow-path" d="M490,90 L580,90" marker-end="url(#ah)"/>
+      <circle id="d-nwo-nce" class="travel-dot" cx="0" cy="0"><animateMotion dur="0.5s" fill="freeze" path="M490,90 L580,90" begin="indefinite" id="am-nwo-nce"/></circle>
+      <!-- NCE→K8s -->
+      <path id="a-nce-k8s" class="arrow-path" d="M650,120 L650,200" marker-end="url(#ah)"/>
+      <circle id="d-nce-k8s" class="travel-dot" cx="0" cy="0"><animateMotion dur="0.5s" fill="freeze" path="M650,120 L650,200" begin="indefinite" id="am-nce-k8s"/></circle>
+      <!-- K8s→Model -->
+      <path id="a-k8s-model" class="arrow-path" d="M650,260 L650,330" marker-end="url(#ah)"/>
+      <!-- Model→NDS -->
+      <path id="a-model-nds" class="arrow-path" d="M580,360 L185,280" marker-end="url(#ah)"/>
+      <circle id="d-model-nds" class="travel-dot" cx="0" cy="0"><animateMotion dur="0.7s" fill="freeze" path="M580,360 L185,280" begin="indefinite" id="am-model-nds"/></circle>
+      <!-- NDS→Model -->
+      <path id="a-nds-model" class="arrow-path" d="M185,260 L580,340" marker-end="url(#ah)"/>
+      <circle id="d-nds-model" class="travel-dot" cx="0" cy="0"><animateMotion dur="0.7s" fill="freeze" path="M185,260 L580,340" begin="indefinite" id="am-nds-model"/></circle>
+      <!-- Model→NDM -->
+      <path id="a-model-ndm" class="arrow-path" d="M650,390 L650,440 L185,440" marker-end="url(#ah)"/>
+      <circle id="d-model-ndm" class="travel-dot" cx="0" cy="0"><animateMotion dur="0.7s" fill="freeze" path="M650,390 L650,440 L185,440" begin="indefinite" id="am-model-ndm"/></circle>
+
+      <!-- Components -->
+      <g class="comp" id="c-dsm" style="--glow:#3b82f6">
+        <rect x="60" y="60" width="120" height="60" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1.5"/>
+        <text x="120" y="87" text-anchor="middle">DSM</text>
+        <text x="120" y="103" text-anchor="middle" class="subtitle">Swarm Manager</text>
+      </g>
+      <g class="comp" id="c-nwo" style="--glow:#f59e0b">
+        <rect x="310" y="60" width="170" height="60" fill="#3d2e0a" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="395" y="87" text-anchor="middle">NWO</text>
+        <text x="395" y="103" text-anchor="middle" class="subtitle">Workload Orchestrator</text>
+      </g>
+      <g class="comp" id="c-nce" style="--glow:#22c55e">
+        <rect x="580" y="60" width="140" height="60" fill="#0a2e1a" stroke="#22c55e" stroke-width="1.5"/>
+        <text x="650" y="87" text-anchor="middle">NCE</text>
+        <text x="650" y="103" text-anchor="middle" class="subtitle">Component Executor</text>
+      </g>
+      <g class="comp" id="c-nds" style="--glow:#a855f7">
+        <rect x="60" y="190" width="120" height="100" fill="#2a1240" stroke="#a855f7" stroke-width="1.5"/>
+        <text x="120" y="232" text-anchor="middle">NDS</text>
+        <text x="120" y="248" text-anchor="middle" class="subtitle">Device Storage</text>
+        <text x="120" y="274" text-anchor="middle" class="subtitle" id="nds-status" style="fill:#a855f7">IDLE</text>
+      </g>
+      <g class="comp" id="c-k8s" style="--glow:#475569">
+        <rect x="580" y="200" width="140" height="60" fill="#1a1f2e" stroke="#475569" stroke-width="1.5"/>
+        <text x="650" y="227" text-anchor="middle">K8s Runtime</text>
+        <text x="650" y="243" text-anchor="middle" class="subtitle">Kubernetes</text>
+      </g>
+      <g class="comp" id="c-model" style="--glow:#14b8a6">
+        <rect x="580" y="330" width="140" height="60" fill="#0a2926" stroke="#14b8a6" stroke-width="1.5"/>
+        <text x="650" y="357" text-anchor="middle">Model</text>
+        <text x="650" y="373" text-anchor="middle" class="subtitle">AI Container</text>
+      </g>
+      <g class="comp" id="c-ndm" style="--glow:#ef4444">
+        <rect x="60" y="410" width="120" height="60" fill="#2e0a0a" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="120" y="437" text-anchor="middle">NDM</text>
+        <text x="120" y="453" text-anchor="middle" class="subtitle">Data Manager</text>
+      </g>
+
+      <!-- Phase labels on diagram -->
+      <text x="380" y="30" text-anchor="middle" fill="#334155" font-size="11" font-family="monospace" id="phaseText">Phase 0: Initialization</text>
+    </svg>
+    <!-- JSON Panel -->
+    <div class="json-panel hidden" id="jsonPanel">
+      <div class="json-header" onclick="toggleJson()"><span id="jsonTitle">Payload</span><span>▼</span></div>
+      <div class="json-body" id="jsonBody"></div>
+    </div>
+    <div class="dataset-panel">
+      <div class="dataset-header">Dataset Input (Pilot)</div>
+      <div class="dataset-body">
+        <div class="compare-grid">
+          <div>
+            <div class="video-label">Before</div>
+            <video id="rawVideo" class="dataset-video" src="demo_assets/traffic_video.mp4" controls muted preload="metadata"></video>
+          </div>
+          <div>
+            <div class="video-label">After</div>
+            <div class="video-wrap">
+              <video id="procVideo" class="dataset-video processed" src="demo_assets/traffic_video_processed.mp4" muted preload="metadata"></video>
+              <canvas id="procCanvas"></canvas>
+            </div>
+          </div>
+        </div>
+        <div class="dataset-meta">Dataset for Traffic Evaluation (Zenodo) — video3.mp4. Processed via YOLOv8.</div>
+      </div>
+    </div>
+    <div class="adv-panel" id="advPanel">
+      <div class="adv-header">Advantage Breakdown</div>
+      <div class="adv-body">
+        <div class="adv-formula">Score = gpu bonus + latency + load + cpu - fairness penalty (recent jobs).</div>
+        <div id="advRows" class="adv-rows"></div>
+      </div>
+    </div>
+  </div>
+  <!-- Log -->
+  <div class="log-panel">
+    <div class="log-header">LIVE LOG</div>
+    <div class="log-body" id="logBody"></div>
+  </div>
+  <!-- Progress -->
+  <div class="progress-bar">
+    <div class="phase" id="ph0"><div class="phase-dot active" id="pd0">0</div><span class="phase-label">Init</span><div class="phase-line" id="pl0"></div></div>
+    <div class="phase" id="ph1"><div class="phase-dot" id="pd1">1</div><span class="phase-label">Orchestration</span><div class="phase-line" id="pl1"></div></div>
+    <div class="phase" id="ph3"><div class="phase-dot" id="pd3">3</div><span class="phase-label">Runtime</span><div class="phase-line" id="pl3"></div></div>
+    <div class="phase" id="ph4"><div class="phase-dot" id="pd4">4</div><span class="phase-label">Completion</span></div>
+  </div>
+</div>
+<script>
+const JOB_ID_BASELINE = 'job-' + Math.random().toString(16).slice(2,10);
+const JOB_ID_SWARM = 'job-' + Math.random().toString(16).slice(2,10);
+const SERVICE_ID = 'urn:ngsi-ld:AIModel:TrafficV2';
+const EXEC_STRATEGY = 'local-k8s';
+const INPUT_VIDEO = 'demo_assets/traffic_video.mp4';
+const SWARM_NODES = [
+  {node_id:'edge-node-01',cpu:2,gpu:false,load:0.6,latency_ms:85,recent_jobs:3},
+  {node_id:'edge-node-02',cpu:4,gpu:true,load:0.7,latency_ms:60,recent_jobs:6},
+  {node_id:'edge-node-03',cpu:8,gpu:true,load:0.2,latency_ms:30,recent_jobs:9},
+  {node_id:'edge-node-04',cpu:4,gpu:true,load:0.5,latency_ms:75,recent_jobs:1},
+];
+const BASELINE_NODES = [
+  {node_id:'edge-node-04',cpu:4,gpu:true,load:0.45,latency_ms:80,recent_jobs:0},
+];
+const BASELINE_ADVANTAGE = {latency_reduction_pct:0, throughput_gain_x:1.0, cost_reduction_pct:0};
+const SWARM_ADVANTAGE = {latency_reduction_pct:20, throughput_gain_x:1.9, cost_reduction_pct:22};
+const BASELINE_SCHEDULE = {
+  selected: {node_id:'edge-node-04',score:100.0},
+  scores: [
+    {node_id:'edge-node-04',score:100.0,gpu:true,load:0.45,latency_ms:80,recent_jobs:0},
+  ],
+  policy:'single-node'
+};
+const SWARM_SCHEDULE = {
+  selected: {node_id:'edge-node-04',score:86.0},
+  scores: [
+    {node_id:'edge-node-04',score:86.0,gpu:true,load:0.5,latency_ms:75,recent_jobs:1},
+    {node_id:'edge-node-03',score:83.0,gpu:true,load:0.2,latency_ms:30,recent_jobs:9},
+    {node_id:'edge-node-02',score:70.0,gpu:true,load:0.7,latency_ms:60,recent_jobs:6},
+    {node_id:'edge-node-01',score:-25.0,gpu:false,load:0.6,latency_ms:85,recent_jobs:3},
+  ],
+  policy:'fairness'
+};
+const TS_BASE = Date.now();
+let currentStep = 0;
+let autoPlayInterval = null;
+
+function buildRunSteps(cfg){
+  const runLabel = cfg.runLabel;
+  const jobId = cfg.jobId;
+  const schedule = cfg.schedule;
+  const nodes = cfg.nodes;
+  const advantage = cfg.advantage;
+  const policy = cfg.policy;
+  const resetPhases = cfg.resetPhases;
+  const phase1Label = `${runLabel} — Phase 1: Orchestration`;
+  const phase3Label = `${runLabel} — Phase 3: Autonomous Runtime`;
+  const phase4Label = `${runLabel} — Phase 4: Completion`;
+  const scheduleLog = policy === 'fairness'
+    ? `[NWO] Multi-node scheduling complete — ${schedule.selected.node_id} selected (fairness-optimized).`
+    : `[NWO] Single-node execution selected — ${schedule.selected.node_id} (baseline).`;
+  const contextLog = policy === 'fairness'
+    ? '[NWO] Swarm Intelligence: parsing workload requirements...'
+    : '[NWO] Baseline path: local execution plan (no swarm optimization).';
+  const m6Log = policy === 'fairness'
+    ? '[NWO][M6] Swarm execution request received from DSM.'
+    : '[NWO][M6] Baseline execution request received (single-node).';
+  return [
+    {phase:1,runLabel,resetPhases,phaseStart:true,highlight:['c-dsm','c-nwo'],arrow:'dsm-nwo',log:m6Log,phaseText:phase1Label,
+     json:{title:'CloudEvent Payload (M6)',data:{specversion:"1.0",type:"com.cognets.swarm.execute",source:"urn:ngsi-ld:DSM:001",data:{serviceId:SERVICE_ID,swarm:{nodes:nodes},parameters:{image:"registry/model:v2",env:{MODEL_TYPE:"TRAFFIC",INPUT_VIDEO:INPUT_VIDEO},requirements:{gpu:true},execution_strategy:EXEC_STRATEGY}}}}},
+    {phase:1,highlight:['c-nwo'],log:contextLog,json:null},
+    {phase:1,highlight:['c-nwo'],log:scheduleLog,
+     json:{title:'Swarm Scheduling',data:{...schedule,advantage:advantage}},advantage:advantage,schedule:schedule},
+    {phase:1,highlight:['c-nwo'],log:'[NWO] Execution plan locked (target node + strategy).',
+     json:{title:'Execution Plan',data:{service_id:SERVICE_ID,target_node:schedule.selected.node_id,strategy:EXEC_STRATEGY,policy:policy,input_video:INPUT_VIDEO}}},
+    {phase:1,highlight:['c-nwo','c-nds'],arrow:'nwo-nds',log:'[NDS] Checking resources against requirements: {"gpu": true}',
+     json:{title:'Resource Requirements',data:{requirements:{gpu:true},available:{cpu:"4",memory:"16Gi",gpu:true}}}},
+    {phase:1,highlight:['c-nds','c-nwo'],arrow:'nds-nwo',log:'[NDS] Resources OK.',
+     json:{title:'Resource Check Result',data:{status:"OK",message:"All requirements satisfied"}}},
+    {phase:1,highlight:['c-nwo'],log:`[NWO] Execution Ticket created: ${jobId}`,
+     json:{title:'Execution Ticket',data:{job_id:jobId,service_id:SERVICE_ID,image:"registry/model:v2",env_vars:{MODEL_TYPE:"TRAFFIC",INPUT_VIDEO:INPUT_VIDEO},execution_strategy:EXEC_STRATEGY,target_node:schedule.selected.node_id,retries:1}}},
+    {phase:1,highlight:['c-nwo','c-nce'],arrow:'nwo-nce',log:`[NWO][M7] Dispatching Execution Ticket to NCE (target: ${schedule.selected.node_id})`,
+     json:{title:'Ticket Dispatch (M7)',data:{job_id:jobId,service_id:SERVICE_ID}}}, 
+    {phase:1,highlight:['c-nce'],log:'[NCE] Generating Kubernetes Job Manifest...',
+     json:{title:'K8s Job Manifest',data:{apiVersion:"batch/v1",kind:"Job",metadata:{name:jobId},spec:{template:{spec:{containers:[{name:"workload",image:"registry/model:v2",env:[{name:"MODEL_TYPE",value:"TRAFFIC"},{name:"INPUT_VIDEO",value:INPUT_VIDEO},{name:"OASEES_JOB_ID",value:jobId},{name:"OASEES_SERVICE_ID",value:SERVICE_ID},{name:"OASEES_EXEC_STRATEGY",value:EXEC_STRATEGY},{name:"OASEES_TARGET_NODE",value:schedule.selected.node_id}]}],restartPolicy:"Never"}}}}}},
+    {phase:1,highlight:['c-nce','c-k8s'],arrow:'nce-k8s',log:`[NCE][M8] kubectl apply -f ${jobId}.yaml`,
+     json:{title:'kubectl Command (M8)',data:{command:`kubectl apply -f ${jobId}.yaml`,status:"applied"}}},
+    {phase:1,highlight:['c-nds'],log:`[NDS] Status updated for ${jobId}: RUNNING`,ndsStatus:'RUNNING',json:null},
+    {phase:3,phaseStart:true,highlight:['c-nce'],log:`[NCE] Monitoring job ${jobId} on ${schedule.selected.node_id}...`,phaseText:phase3Label,
+     json:{title:'Job Monitoring',data:{job_id:jobId,target_node:schedule.selected.node_id,status:"RUNNING → SUCCEEDED"}}},
+    {phase:3,highlight:['c-model','c-nds'],arrow:'model-nds',log:'[Model] Requesting Sensor Data from NDS (M8*)...',
+     json:{title:'Sensor Query (M8*)',data:{query:"urn:ngsi-ld:Sensor:Camera01",interface:"NGSI-LD"}}},
+    {phase:3,highlight:['c-nds','c-model'],arrow:'nds-model',log:'[NDS] Returning sensor data to Model.',
+     json:{title:'Sensor Data Response',data:{type:"SensorReading",data:{temperature:25.5,humidity:60.0,camera_feed:"base64_encoded_image_placeholder"},timestamp:TS_BASE/1000}}},
+    {phase:3,highlight:['c-model'],log:'[Model] Executing inference (M9)...',
+     json:{title:'Inference Result (M9)',data:{class:"car",confidence:0.98,bbox:[10,20,100,200]}}},
+    {phase:3,highlight:['c-model'],log:'[Model] Video processed (YOLOv8) → demo_assets/traffic_video_processed.mp4',
+     json:{title:'Processed Video',data:{output_video:"demo_assets/traffic_video_processed.mp4",model:"yolov8n.pt"}}},
+    {phase:3,highlight:['c-model','c-ndm'],arrow:'model-ndm',log:'[Model] Pushing result to NDM (M10)...',
+     json:{title:'Result Payload (M10)',data:{class:"car",confidence:0.98,bbox:[10,20,100,200]}}},
+    {phase:3,highlight:['c-ndm'],log:'[NDM] Publishing result payload (M11).',
+     json:{title:'Result Payload (M11)',data:{data:{class:"car",confidence:0.98,bbox:[10,20,100,200]},timestamp:TS_BASE/1000,channel:"ngsi-ld"}}},
+    {phase:4,phaseStart:true,highlight:['c-nce'],log:`[NCE] Job ${jobId} completed successfully.`,phaseText:phase4Label,
+     json:{title:'Completion',data:{job_id:jobId,status:"COMPLETED"}}},
+    {phase:4,highlight:['c-nce'],log:`[NCE] Cleaning up resources for job: ${jobId}`,json:null},
+    {phase:4,highlight:['c-nds'],log:`[NDS] Status updated for ${jobId}: CLEANED`,ndsStatus:'CLEANED',
+     json:{title:'Final State',data:{job_id:jobId,status:"CLEANED",resources_released:true}}},
+  ];
+}
+
+const steps = [
+  // Phase 0
+  {phase:0,highlight:['c-nds'],log:'[NDS] Initialized.',phaseText:'Phase 0: Initialization',phaseStart:true,
+   json:{title:'NDS Resources',data:{cpu:"4",memory:"16Gi",gpu:true,sensor_data:{temperature:25.5,humidity:60.0,camera_feed:"base64_encoded_image_placeholder"}}}},
+  {phase:0,highlight:['c-ndm'],log:'[NDM] Initialized.',json:null},
+  {phase:0,highlight:['c-nce'],log:'[NCE] Initialized.',json:null},
+  {phase:0,highlight:['c-nwo'],log:'[NWO] Initialized.',json:null},
+  ...buildRunSteps({
+    runLabel:'Run 1: Single Node (Baseline)',
+    jobId:JOB_ID_BASELINE,
+    schedule:BASELINE_SCHEDULE,
+    nodes:BASELINE_NODES,
+    advantage:BASELINE_ADVANTAGE,
+    policy:'single-node',
+    resetPhases:false
+  }),
+  ...buildRunSteps({
+    runLabel:'Run 2: Swarm Enabled (Fairness)',
+    jobId:JOB_ID_SWARM,
+    schedule:SWARM_SCHEDULE,
+    nodes:SWARM_NODES,
+    advantage:SWARM_ADVANTAGE,
+    policy:'fairness',
+    resetPhases:true
+  }),
+];
+
+function ts(){const d=new Date();return d.toTimeString().slice(0,8)+'.'+String(d.getMilliseconds()).padStart(3,'0')}
+
+function syntaxHL(obj,indent=0){
+  const pad='  '.repeat(indent);
+  if(obj===null)return'<span class="jb">null</span>';
+  if(typeof obj==='boolean')return`<span class="jb">${obj}</span>`;
+  if(typeof obj==='number')return`<span class="jn">${obj}</span>`;
+  if(typeof obj==='string')return`<span class="js">"${obj}"</span>`;
+  if(Array.isArray(obj)){
+    if(obj.length===0)return'<span class="jp">[]</span>';
+    let r='<span class="jp">[</span>\n';
+    obj.forEach((v,i)=>{r+=pad+'  '+syntaxHL(v,indent+1)+(i<obj.length-1?',':'')+'\n'});
+    return r+pad+'<span class="jp">]</span>';
+  }
+  const keys=Object.keys(obj);
+  if(keys.length===0)return'<span class="jp">{}</span>';
+  let r='<span class="jp">{</span>\n';
+  keys.forEach((k,i)=>{r+=pad+'  <span class="jk">"'+k+'"</span>: '+syntaxHL(obj[k],indent+1)+(i<keys.length-1?',':'')+'\n'});
+  return r+pad+'<span class="jp">}</span>';
+}
+
+function formatReduction(v){
+  if(v===null||v===undefined)return'--';
+  if(v===0)return'0%';
+  return`-${v}%`;
+}
+
+function formatThroughput(v){
+  if(v===null||v===undefined)return'--';
+  if(v===1||v===1.0)return'1.0x';
+  return`+${v}x`;
+}
+
+function updateAdvantage(a){
+  if(!a)return;
+  const lat=document.getElementById('advLatency');
+  const thr=document.getElementById('advThroughput');
+  const cost=document.getElementById('advCost');
+  if(lat)lat.textContent=formatReduction(a.latency_reduction_pct);
+  if(thr)thr.textContent=formatThroughput(a.throughput_gain_x);
+  if(cost)cost.textContent=formatReduction(a.cost_reduction_pct);
+}
+
+function renderBreakdown(schedule){
+  const rows=document.getElementById('advRows');
+  if(!rows)return;
+  rows.innerHTML='';
+  const scores=(schedule&&schedule.scores)?schedule.scores:[];
+  if(!scores.length){
+    rows.innerHTML='<div class="adv-empty">No schedule data.</div>';
+    return;
+  }
+  scores.forEach(n=>{
+    const row=document.createElement('div');
+    const active=(schedule.selected&&schedule.selected.node_id===n.node_id);
+    row.className='adv-row'+(active?' active':'');
+    const score=(typeof n.score==='number')?n.score.toFixed(1):'--';
+    const latency=(n.latency_ms!==undefined)?n.latency_ms:'--';
+    const load=(n.load!==undefined)?n.load:'--';
+    const recent=(n.recent_jobs!==undefined)?n.recent_jobs:'--';
+    row.innerHTML=`<div class="adv-node">${n.node_id}</div><div class="adv-score">${score}</div><div class="adv-meta">lat ${latency}ms | load ${load} | recent ${recent}</div>`;
+    rows.appendChild(row);
+  });
+}
+
+function setupVideoCompare(){
+  const raw=document.getElementById('rawVideo');
+  const proc=document.getElementById('procVideo');
+  const canvas=document.getElementById('procCanvas');
+  if(!raw||!proc||!canvas)return;
+  const ctx=canvas.getContext('2d');
+  let useOverlay=false;
+
+  function resize(){
+    if(raw.videoWidth&&raw.videoHeight){
+      canvas.width=raw.videoWidth;
+      canvas.height=raw.videoHeight;
+    }
+  }
+  raw.addEventListener('loadedmetadata',resize);
+  proc.addEventListener('loadedmetadata',resize);
+
+  raw.addEventListener('play',()=>{proc.play();});
+  raw.addEventListener('pause',()=>{proc.pause();});
+  raw.addEventListener('seeking',()=>{proc.currentTime=raw.currentTime;});
+  raw.addEventListener('timeupdate',()=>{
+    if(Math.abs(proc.currentTime-raw.currentTime)>0.05)proc.currentTime=raw.currentTime;
+  });
+  proc.addEventListener('error',()=>{
+    useOverlay=true;
+    proc.src=raw.src;
+  });
+
+  function detectionsAt(t){
+    if(t<3) return [{x:.18,y:.35,w:.22,h:.22,label:'car',conf:0.96}];
+    if(t<6) return [{x:.52,y:.32,w:.25,h:.25,label:'truck',conf:0.91}];
+    return [{x:.30,y:.40,w:.20,h:.20,label:'car',conf:0.94},{x:.62,y:.38,w:.18,h:.18,label:'car',conf:0.88}];
+  }
+
+  function draw(){
+    if(useOverlay && raw.readyState>=2){
+      const w=canvas.width,h=canvas.height;
+      ctx.clearRect(0,0,w,h);
+      const boxes=detectionsAt(raw.currentTime);
+      ctx.lineWidth=2;
+      ctx.strokeStyle='#22c55e';
+      ctx.fillStyle='rgba(34,197,94,0.12)';
+      ctx.font='12px sans-serif';
+      boxes.forEach(b=>{
+        const x=b.x*w,y=b.y*h,bw=b.w*w,bh=b.h*h;
+        ctx.fillRect(x,y,bw,bh);
+        ctx.strokeRect(x,y,bw,bh);
+        ctx.fillStyle='#22c55e';
+        ctx.fillText(`${b.label} ${Math.round(b.conf*100)}%`,x+4,y-6);
+        ctx.fillStyle='rgba(34,197,94,0.12)';
+      });
+    }
+    requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+function clearActive(){
+  document.querySelectorAll('.comp.active').forEach(e=>e.classList.remove('active'));
+  document.querySelectorAll('.arrow-path.active').forEach(e=>{e.classList.remove('active');e.setAttribute('marker-end','url(#ah)')});
+  document.querySelectorAll('.travel-dot.active').forEach(e=>e.classList.remove('active'));
+}
+
+function animateArrow(id){
+  const path=document.getElementById('a-'+id);
+  const dot=document.getElementById('d-'+id);
+  const anim=document.getElementById('am-'+id);
+  if(path){path.classList.add('active');path.setAttribute('marker-end','url(#ahActive)')}
+  if(dot&&anim){dot.classList.add('active');anim.beginElement()}
+}
+
+const phaseMap={0:['pd0'],1:['pd1'],3:['pd3'],4:['pd4']};
+const phaseLineMap={0:'pl0',1:'pl1',3:'pl3'};
+let maxPhase=-1;
+
+function resetPhaseProgress(){
+  maxPhase=-1;
+  document.querySelectorAll('.phase-dot').forEach(e=>{e.classList.remove('active','done')});
+  document.querySelectorAll('.phase-line').forEach(e=>e.classList.remove('done'));
+  document.getElementById('pd0').classList.add('active');
+}
+
+function updatePhase(p){
+  if(p<=maxPhase)return;
+  // Mark previous phases done
+  [0,1,3,4].forEach(pp=>{
+    if(pp<p){
+      phaseMap[pp].forEach(id=>{const e=document.getElementById(id);e.classList.remove('active');e.classList.add('done')});
+      const ln=phaseLineMap[pp];if(ln)document.getElementById(ln).classList.add('done');
+    }else if(pp===p){
+      phaseMap[pp].forEach(id=>{const e=document.getElementById(id);e.classList.add('active')});
+    }
+  });
+  maxPhase=p;
+}
+
+function showJson(title,data){
+  const p=document.getElementById('jsonPanel');
+  document.getElementById('jsonTitle').textContent=title;
+  document.getElementById('jsonBody').innerHTML=syntaxHL(data);
+  p.classList.remove('hidden');
+}
+
+function nextStep(){
+  if(currentStep>=steps.length)return;
+  const s=steps[currentStep];
+  clearActive();
+  if(s.resetPhases)resetPhaseProgress();
+  // Highlight
+  s.highlight.forEach(id=>document.getElementById(id).classList.add('active'));
+  // Arrow
+  if(s.arrow)animateArrow(s.arrow);
+  // Phase
+  updatePhase(s.phase);
+  if(s.phaseText)document.getElementById('phaseText').textContent=s.phaseText;
+  // NDS status
+  if(s.ndsStatus){document.getElementById('nds-status').textContent=s.ndsStatus}
+  // Log
+  const lb=document.getElementById('logBody');
+  if(s.runLabel){
+    const rl=document.createElement('div');rl.className='log-entry phase-line';
+    rl.innerHTML=`=== ${s.runLabel} ===`;lb.appendChild(rl);
+  }
+  if(s.phaseStart){
+    const pe=document.createElement('div');pe.className='log-entry phase-line';
+    pe.innerHTML=`--- ${s.phaseText||''} ---`;lb.appendChild(pe);
+  }
+  const le=document.createElement('div');le.className='log-entry';
+  le.innerHTML=`<span class="ts">[${ts()}]</span> ${s.log}`;
+  lb.appendChild(le);lb.scrollTop=lb.scrollHeight;
+  // JSON
+  if(s.json)showJson(s.json.title,s.json.data);
+  else document.getElementById('jsonPanel').classList.add('hidden');
+  if(s.advantage)updateAdvantage(s.advantage);
+  if(s.schedule)renderBreakdown(s.schedule);
+  // Label
+  currentStep++;
+  document.getElementById('stepLabel').textContent=`Step ${currentStep} / ${steps.length}`;
+  if(currentStep>=steps.length){
+    document.getElementById('nextBtn').disabled=true;
+    const fe=document.createElement('div');fe.className='log-entry phase-line';
+    fe.innerHTML='=== Demo Completed ===';lb.appendChild(fe);lb.scrollTop=lb.scrollHeight;
+    if(autoPlayInterval){clearInterval(autoPlayInterval);autoPlayInterval=null;document.getElementById('autoPlay').checked=false}
+  }
+}
+
+function resetDemo(){
+  currentStep=0;
+  clearActive();
+  document.getElementById('logBody').innerHTML='';
+  document.getElementById('jsonPanel').classList.add('hidden');
+  document.getElementById('nextBtn').disabled=false;
+  document.getElementById('stepLabel').textContent='Ready';
+  document.getElementById('nds-status').textContent='IDLE';
+  document.getElementById('phaseText').textContent='Phase 0: Initialization';
+  document.getElementById('advLatency').textContent='--';
+  document.getElementById('advThroughput').textContent='--';
+  document.getElementById('advCost').textContent='--';
+  const advRows=document.getElementById('advRows');
+  if(advRows)advRows.innerHTML='';
+  resetPhaseProgress();
+  if(autoPlayInterval){clearInterval(autoPlayInterval);autoPlayInterval=null;document.getElementById('autoPlay').checked=false}
+}
+
+function toggleJson(){document.getElementById('jsonPanel').classList.toggle('hidden')}
+
+window.addEventListener('load',setupVideoCompare);
+
+document.getElementById('autoPlay').addEventListener('change',function(){
+  if(this.checked){autoPlayInterval=setInterval(()=>{if(currentStep<steps.length)nextStep();else{clearInterval(autoPlayInterval);autoPlayInterval=null;this.checked=false}},1500)}
+  else if(autoPlayInterval){clearInterval(autoPlayInterval);autoPlayInterval=null}
+});
+</script>
+</body>
+</html>
